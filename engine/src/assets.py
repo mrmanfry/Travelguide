@@ -40,16 +40,22 @@ def _connect() -> sqlite3.Connection:
 
 
 def _parse_meta(meta: str) -> list[dict]:
-    """Interpreta il blocco META come JSON (oggetto o lista di oggetti).
+    """Interpreta il blocco META come JSON.
 
-    Se non è JSON valido, restituisce una lista vuota: la riga viene comunque
-    salvata con il solo meta_raw, così nessun dato va perso.
+    Il formato atteso (da prompts/chapter_system.md) è un oggetto con la lista
+    di asset sotto la chiave "assets"; per robustezza si accettano anche una
+    lista di asset nudi o un singolo oggetto asset. Se non è JSON valido,
+    restituisce una lista vuota: la riga viene comunque salvata con il solo
+    meta_raw, così nessun dato va perso.
     """
     try:
         parsed = json.loads(meta)
     except (json.JSONDecodeError, TypeError):
         return []
     if isinstance(parsed, dict):
+        assets_list = parsed.get("assets")
+        if isinstance(assets_list, list):
+            return [item for item in assets_list if isinstance(item, dict)]
         return [parsed]
     if isinstance(parsed, list):
         return [item for item in parsed if isinstance(item, dict)]
