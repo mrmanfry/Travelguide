@@ -9,6 +9,7 @@ come sono, senza contenuti volatili (date, id di richiesta, ecc.).
 import json
 import os
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import anthropic
@@ -45,11 +46,55 @@ def stable_json(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, sort_keys=True, indent=2)
 
 
+GIORNI_IT = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
+
+CALENDAR_HEADER = (
+    "# CALENDARIO DEL VIAGGIO "
+    "(precalcolato — unica fonte ammessa per i giorni della settimana)"
+)
+
+
+def build_calendar_block(brief: Brief) -> str:
+    """Calendario del viaggio calcolato in Python, mai dal modello.
+
+    Una riga per ogni data del viaggio con giorno della settimana in italiano
+    e tappa corrispondente. Il risultato è una funzione pura del brief, quindi
+    identico byte per byte tra tutte le chiamate della stessa guida (writer e
+    critico compresi), come richiede il prompt caching.
+    """
+    if not (brief.date.inizio and brief.date.fine):
+        return (
+            CALENDAR_HEADER
+            + "\nDate non fissate: non fare riferimento a giorni della settimana specifici."
+        )
+
+    totale = (brief.date.fine - brief.date.inizio).days + 1
+
+    # Tappa per ogni giorno: la tappa i copre le sue notti; il giorno di
+    # partenza finale resta sull'ultima tappa.
+    luoghi_per_giorno: list[str] = []
+    for tappa in brief.tappe:
+        luoghi_per_giorno.extend([tappa.luogo] * tappa.notti)
+    ultima = brief.tappe[-1].luogo if brief.tappe else ""
+
+    righe = [CALENDAR_HEADER]
+    for i in range(totale):
+        giorno = brief.date.inizio + timedelta(days=i)
+        luogo = luoghi_per_giorno[i] if i < len(luoghi_per_giorno) else ultima
+        riga = f"{giorno.isoformat()} — {GIORNI_IT[giorno.weekday()]} — giorno {i + 1} di {totale}"
+        if luogo:
+            riga += f" — {luogo}"
+        righe.append(riga)
+    return "\n".join(righe)
+
+
 def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") -> list[dict]:
     """Costruisce il system a due blocchi, entrambi marcati per il caching.
 
     Blocco 1: style_guide.md + separatore + system_file (con {{LINGUA}} risolto).
-    Blocco 2: il brief serializzato in JSON deterministico.
+    Blocco 2: il brief serializzato in JSON deterministico + calendario del
+    viaggio precalcolato in Python (i giorni della settimana non vanno mai
+    lasciati calcolare al modello).
     """
     style_guide = (PROMPTS_DIR / "style_guide.md").read_text(encoding="utf-8")
     system_prompt = (PROMPTS_DIR / system_file).read_text(encoding="utf-8")
@@ -63,7 +108,12 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
         },
         {
             "type": "text",
-            "text": "# BRIEF DEL VIAGGIO\n\n" + stable_json(brief.model_dump(mode="json")),
+            "text": (
+                "# BRIEF DEL VIAGGIO\n\n"
+                + stable_json(brief.model_dump(mode="json"))
+                + "\n\n"
+                + build_calendar_block(brief)
+            ),
             "cache_control": {"type": "ephemeral"},
         },
     ]

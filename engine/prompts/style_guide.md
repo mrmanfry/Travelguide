@@ -19,7 +19,7 @@ Figura dell'autore: un accompagnatore esperto e onesto, che ha opinioni e le mot
 
 * Titolo: nome del luogo (con nome indigeno/locale dove esiste) + sottotitolo evocativo che è una tesi.
 * Sezioni numerate romane (I, II, III…) con titoli tematici brevi. 4-7 sezioni per capitolo di tappa.
-* Arco tipo: I. arrivo/impressione sensoriale → II. lo strato profondo (storia/cultura) → III-V. le esperienze, raccontate e poi rese pratiche → VI+. pratica pura (muoversi, mangiare, quartieri), sempre ancorata alla logistica reale del cliente.
+* Sezioni organizzate per luogo o tema, mai per giornata; l'arco resta senso→pratica ma non diventa mai un programma orario.
 * Lunghezza: proporzionale a notti × densità della tappa.
 
 4. I box tematici (6 tipi, regole d'uso)
@@ -58,3 +58,10 @@ I nomi sono adattabili alla destinazione (BUSH TIP altrove diventa TRAIL TIP, CI
 * Dati specifici (prezzi, orari) non provenienti dalla ricerca del turno
 * Ripetere al cliente informazioni che ha dato lui
 * Chiusure riassuntive ("Insomma, Sydney offre davvero tutto")
+* Capitolo organizzato come programma di giornata ("Sabato mattina", "Primo movimento: alle nove in punto")
+* Orari e sequenze imposti senza la ragione che li giustifica
+* Sezioni che dipendono dall'aver seguito le precedenti
+* Fonti citate dentro la prosa
+* Linguaggio promozionale su hotel, locali, attrazioni
+* Preamboli, note di lavoro o riepiloghi di ricerca dentro il file del capitolo
+* Refusi da cucitura di fonti (parole incollate, calchi dall'inglese, incoerenze interne)
