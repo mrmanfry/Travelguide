@@ -7,6 +7,7 @@ come sono, senza contenuti volatili (date, id di richiesta, ecc.).
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -20,6 +21,23 @@ ENGINE_ROOT = Path(__file__).resolve().parents[1]
 PROMPTS_DIR = ENGINE_ROOT / "prompts"
 
 META_RE = re.compile(r"<!--META(.*?)META-->", re.DOTALL)
+
+
+def make_client() -> anthropic.Anthropic:
+    """Costruisce il client con chiave e base_url espliciti.
+
+    L'ambiente sandbox ignora ANTHROPIC_API_KEY e imposta un ANTHROPIC_BASE_URL
+    che punta al proxy interno: per questo la chiave arriva da GUIDE_ENGINE_KEY
+    e il base_url è fissato all'API pubblica, così il client non eredita nulla
+    dalle variabili d'ambiente del sandbox.
+    """
+    api_key = os.environ.get("GUIDE_ENGINE_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Variabile d'ambiente GUIDE_ENGINE_KEY mancante: impostala con la "
+            "API key Anthropic da usare per il motore (non viene mai stampata)."
+        )
+    return anthropic.Anthropic(api_key=api_key, base_url="https://api.anthropic.com")
 
 
 def stable_json(obj) -> str:
@@ -64,7 +82,7 @@ def generate_chapter(brief: Brief, assignment: ChapterAssignment) -> Path:
         return cap_path
     cap_path.parent.mkdir(parents=True, exist_ok=True)
 
-    client = anthropic.Anthropic()  # legge ANTHROPIC_API_KEY dall'ambiente
+    client = make_client()
     system = build_system_blocks(brief)
     tools = [
         {

@@ -11,8 +11,6 @@ import argparse
 import json
 from pathlib import Path
 
-import anthropic
-
 from schema.brief import Brief, ChapterAssignment
 from src import config
 from src.chapter_runner import (
@@ -20,12 +18,13 @@ from src.chapter_runner import (
     build_system_blocks,
     chapter_paths,
     generate_chapter,
+    make_client,
 )
 
 
 def run_critic(brief: Brief, assignment: ChapterAssignment, capitolo: str) -> Path:
     """Seconda passata: critica del capitolo, con la stessa struttura system a due blocchi."""
-    client = anthropic.Anthropic()
+    client = make_client()
     system = build_system_blocks(brief, system_file="critic_system.md")
     tools = [
         {
