@@ -207,19 +207,30 @@ def total_web_searches(usage_log: list[dict]) -> int:
     return tot
 
 
-def run_one_generation(client, system, tools, user_content: str):
+def run_one_generation(
+    client,
+    system,
+    tools,
+    user_content: str,
+    model: str | None = None,
+    max_tokens: int | None = None,
+):
     """Un singolo tentativo di generazione, gestendo i pause_turn della ricerca.
 
     Ritorna (response, usage_log): la risposta finale e la lista degli usage di
     tutte le chiamate (una sola, o più se il turno è stato messo in pausa).
+    `model` e `max_tokens` sono parametrizzati perché lo stesso ciclo serve sia
+    il generatore (Opus) sia il correttore (Sonnet), con modelli diversi.
     """
+    model = model or config.MODEL_GENERATION
+    max_tokens = max_tokens or config.MAX_TOKENS_CHAPTER
     user_message = {"role": "user", "content": user_content}
     messages = [user_message]
     usage_log = []
     while True:
         response = client.messages.create(
-            model=config.MODEL_GENERATION,
-            max_tokens=config.MAX_TOKENS_CHAPTER,
+            model=model,
+            max_tokens=max_tokens,
             system=system,
             tools=tools,
             messages=messages,

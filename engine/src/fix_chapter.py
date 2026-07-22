@@ -8,6 +8,7 @@ correttore lavora con lo stesso contesto di chi ha scritto e chi ha criticato.
 """
 
 import json
+import sys
 from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
@@ -19,6 +20,7 @@ from src.chapter_runner import (
     chapter_word_count,
     clean_chapter,
     make_client,
+    parse_meta,
     run_one_generation,
 )
 
@@ -84,7 +86,14 @@ def apply_corrections(
     ]
 
     user_content = build_fixer_user(chapter_text, alerts)
-    response, usage_log = run_one_generation(client, system, tools, user_content)
+    response, usage_log = run_one_generation(
+        client,
+        system,
+        tools,
+        user_content,
+        model=config.MODEL_FIXER,
+        max_tokens=config.MAX_TOKENS_CHAPTER,
+    )
     grezzo = "".join(block.text for block in response.content if block.type == "text")
 
     testo, titolo_ok = clean_chapter(grezzo)
@@ -108,9 +117,21 @@ def apply_corrections(
         encoding="utf-8",
     )
 
-    # Il META corretto è quello autoritativo: aggiorna la libreria asset.
+    # Il META corretto è quello autoritativo: aggiorna la libreria asset, ma
+    # SOLO se il blocco porta una lista `assets` non vuota. Altrimenti si
+    # scriverebbe una riga degenere (senza tipo né titolo): meglio non toccare
+    # il database e segnalare l'anomalia.
     meta_match = META_RE.search(testo)
-    if meta_match:
+    meta = parse_meta(testo)
+    assets = meta.get("assets") if isinstance(meta, dict) else None
+    if meta_match and isinstance(assets, list) and assets:
         capture_assets(brief, assignment, meta_match.group(1).strip())
+    else:
+        print(
+            f"ATTENZIONE: capitolo corretto {numero:02d}: blocco META assente o senza "
+            "chiave 'assets' valorizzata — nessun asset scritto nel database "
+            "(evitata la riga degenere).",
+            file=sys.stderr,
+        )
 
     return chapter_path, chapter_word_count(testo)

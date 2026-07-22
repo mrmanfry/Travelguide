@@ -22,6 +22,7 @@ from src.chapter_runner import (
     generate_chapter,
     make_client,
 )
+from src.costs import scrivi_costi
 from src.fix_chapter import apply_corrections
 
 
@@ -261,6 +262,13 @@ def main() -> None:
         )
         print(f"Ri-critica: {critic2_path}")
         verdetto, bloccanti, alerts = leggi_verdetto(risultato)
+
+    # Misura dei costi: aggrega gli usage di tutte le chiamate (generazione,
+    # critico, fixer, secondo critico) e scrive output/{brief_id}/costi.json.
+    costi_path, costi = scrivi_costi(brief, assignment)
+    tot = costi["totale"].get("costo_usd")
+    tot_str = f"${tot:.4f}" if tot is not None else "non disponibile"
+    print(f"Costi: {costi_path} (totale capitolo: {tot_str})")
 
     consegnabile = scrivi_gate(
         brief, assignment, verdetto, bloccanti, alerts, corretto, gen_warnings
