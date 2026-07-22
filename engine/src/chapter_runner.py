@@ -147,6 +147,36 @@ def strip_cite_tags(testo: str) -> str:
     return CITE_RE.sub("", testo)
 
 
+def truncate_after_meta(testo: str) -> str:
+    """Tronca il testo subito dopo la chiusura del blocco META.
+
+    Tutto ciò che segue `META-->` (postscript, riepiloghi, note del modello) va
+    eliminato: il file è un capitolo, non deve avere coda. Se il blocco META è
+    assente il testo è restituito immutato — la sua obbligatorietà è gestita a
+    monte nel loop dei tentativi.
+    """
+    m = META_RE.search(testo)
+    if not m:
+        return testo
+    return testo[: m.end()]
+
+
+def clean_chapter(grezzo: str) -> tuple[str, bool]:
+    """Pulizie deterministiche condivise tra generatore e correttore.
+
+    In ordine: taglia il preambolo prima del titolo, rimuove i tag cite, tronca
+    il postscript dopo `META-->`. Ritorna (testo, titolo_ok): se non c'è alcuna
+    riga di titolo '# ', titolo_ok è False e il grezzo è restituito immutato,
+    perché senza titolo non ha senso applicare le altre pulizie.
+    """
+    testo, titolo_ok = strip_preamble(grezzo)
+    if not titolo_ok:
+        return grezzo, False
+    testo = strip_cite_tags(testo)
+    testo = truncate_after_meta(testo)
+    return testo, True
+
+
 def chapter_word_count(testo: str) -> int:
     """Conta le parole del capitolo, dal titolo escluso il blocco META.
 
@@ -246,7 +276,7 @@ def generate_chapter(
         response, usage_log = run_one_generation(client, system, tools, user_content)
         grezzo = "".join(block.text for block in response.content if block.type == "text")
 
-        testo, titolo_ok = strip_preamble(grezzo)
+        testo, titolo_ok = clean_chapter(grezzo)
         if not titolo_ok:
             # Nessuna riga di titolo: è un errore. Salvo il grezzo e segnalo.
             testo = grezzo
@@ -256,24 +286,49 @@ def generate_chapter(
             )
             break
 
-        testo = strip_cite_tags(testo)
         parole = chapter_word_count(testo)
-        if lo <= parole <= hi:
+        meta = parse_meta(testo)
+        lunghezza_ok = lo <= parole <= hi
+        meta_ok = meta is not None
+
+        # Il capitolo è valido solo se rientra nella banda di lunghezza E porta
+        # un blocco META parsabile: senza META il controllo sulle ricerche è
+        # inerte e la libreria asset resta vuota, quindi è motivo di rigenerazione.
+        if lunghezza_ok and meta_ok:
             break
 
         if tentativo < MAX_GEN_ATTEMPTS:
-            verso = "più lungo" if parole < lo else "più corto"
-            extra_note = (
-                f"\n\nREVISIONE LUNGHEZZA: il tentativo precedente era di {parole} parole, "
-                f"fuori dalla banda ammessa ({lo}-{hi}) per il budget di {budget}. "
-                f"Riscrivi il capitolo {verso}, puntando a circa {budget} parole, "
-                f"senza sacrificare i nomi concreti né il box GLI IMMOBILI."
-            )
+            note_parti = []
+            if not lunghezza_ok:
+                verso = "più lungo" if parole < lo else "più corto"
+                note_parti.append(
+                    f"REVISIONE LUNGHEZZA: il tentativo precedente era di {parole} parole, "
+                    f"fuori dalla banda ammessa ({lo}-{hi}) per il budget di {budget}. "
+                    f"Riscrivi il capitolo {verso}, puntando a circa {budget} parole, "
+                    f"senza sacrificare i nomi concreti né il box GLI IMMOBILI."
+                )
+            if not meta_ok:
+                note_parti.append(
+                    "BLOCCO META MANCANTE O NON PARSABILE: il tentativo precedente non "
+                    "conteneva un blocco META valido. Devi EMETTERE il blocco nel formato "
+                    "richiesto — delimitato da `<!--META` e `META-->`, con dentro JSON valido "
+                    "(riassunto, fatti_verificati, claims_da_verificare, assets) — non "
+                    "descriverlo a parole né riassumerlo in un postscript. È l'ultimo blocco "
+                    "del file: dopo `META-->` non deve seguire nient'altro."
+                )
+            extra_note = "\n\n" + "\n\n".join(note_parti)
         else:
-            warnings.append(
-                f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
-                f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
-            )
+            if not lunghezza_ok:
+                warnings.append(
+                    f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                    f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
+                )
+            if not meta_ok:
+                warnings.append(
+                    f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                    "il capitolo è salvato come grezzo ma non è valido (controllo ricerche "
+                    "inerte, nessun asset estratto)."
+                )
 
     # Controllo esaurimento ricerche sull'ultimo tentativo salvato.
     meta = parse_meta(testo)

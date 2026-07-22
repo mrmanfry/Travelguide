@@ -1,0 +1,116 @@
+"""Loop di correzione mirata di un capitolo già criticato.
+
+Chiude il ciclo rilevamento→correzione: prende il capitolo e la lista degli
+alert del critico e restituisce una versione corretta, riverificando i fatti
+con la web search invece di fidarsi ciecamente degli alert. Riusa il prefisso
+system in cache (style guide + brief + calendario) del generatore, così il
+correttore lavora con lo stesso contesto di chi ha scritto e chi ha criticato.
+"""
+
+import json
+from pathlib import Path
+
+from schema.brief import Brief, ChapterAssignment
+from src import config
+from src.assets import capture_assets
+from src.chapter_runner import (
+    META_RE,
+    build_system_blocks,
+    chapter_word_count,
+    clean_chapter,
+    make_client,
+    run_one_generation,
+)
+
+
+def format_alerts(alerts: list[dict]) -> str:
+    """Rende la lista degli alert del critico in un blocco leggibile per il correttore."""
+    parti = []
+    for i, a in enumerate(alerts, 1):
+        if not isinstance(a, dict):
+            continue
+        parti.append(
+            f"Alert {i} — gravità: {a.get('gravita', '?')}, tipo: {a.get('tipo', '?')}\n"
+            f"  posizione: {a.get('posizione', '')}\n"
+            f"  problema: {a.get('problema', '')}\n"
+            f"  evidenza: {a.get('evidenza', '')}\n"
+            f"  correzione proposta: {a.get('correzione_proposta', '')}"
+        )
+    return "\n\n".join(parti)
+
+
+def build_fixer_user(chapter_text: str, alerts: list[dict]) -> str:
+    """Messaggio user del correttore: capitolo integrale + alert da correggere."""
+    return (
+        "CAPITOLO DA CORREGGERE (integrale, nello stesso formato in cui va restituito):\n\n"
+        f"{chapter_text}\n\n"
+        "---\n\n"
+        "ALERT EMESSI DALL'EDITOR DI VERIFICA (riverificali prima di correggere):\n\n"
+        f"{format_alerts(alerts)}"
+    )
+
+
+def apply_corrections(
+    brief: Brief,
+    assignment: ChapterAssignment,
+    chapter_path: Path,
+    verdict: dict | None,
+) -> tuple[Path, int]:
+    """Applica le correzioni del critico al capitolo e lo riscrive.
+
+    Salva la versione pre-correzione in `cap_NN.v1.md`, poi sovrascrive
+    `cap_NN.md` con la versione corretta, ripassata per le stesse pulizie
+    deterministiche del generatore (preambolo, cite, troncamento post-META).
+    Il correttore ha accesso alla web search (tetto `MAX_SEARCHES_CRITIC`) per
+    riverificare i fatti prima di riscriverli. Ritorna (percorso, n_parole).
+    """
+    numero = assignment.numero
+    chapter_text = chapter_path.read_text(encoding="utf-8")
+
+    # Versione intermedia prima della correzione, per poter confrontare.
+    v1_path = chapter_path.with_name(f"cap_{numero:02d}.v1.md")
+    v1_path.write_text(chapter_text, encoding="utf-8")
+
+    alerts = [a for a in ((verdict or {}).get("alerts") or []) if isinstance(a, dict)]
+
+    client = make_client()
+    system = build_system_blocks(brief, system_file="fixer_system.md")
+    tools = [
+        {
+            "type": config.WEB_SEARCH_TOOL_TYPE,
+            "name": "web_search",
+            "max_uses": config.MAX_SEARCHES_CRITIC,
+        }
+    ]
+
+    user_content = build_fixer_user(chapter_text, alerts)
+    response, usage_log = run_one_generation(client, system, tools, user_content)
+    grezzo = "".join(block.text for block in response.content if block.type == "text")
+
+    testo, titolo_ok = clean_chapter(grezzo)
+    if not titolo_ok:
+        # Senza titolo la pulizia non si applica: salvo il grezzo così com'è.
+        testo = grezzo
+
+    chapter_path.write_text(testo, encoding="utf-8")
+
+    usage_path = chapter_path.with_name(f"cap_{numero:02d}.fix.usage.json")
+    usage_path.write_text(
+        json.dumps(
+            {
+                "model": response.model,
+                "stop_reason": response.stop_reason,
+                "chiamate": usage_log,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    # Il META corretto è quello autoritativo: aggiorna la libreria asset.
+    meta_match = META_RE.search(testo)
+    if meta_match:
+        capture_assets(brief, assignment, meta_match.group(1).strip())
+
+    return chapter_path, chapter_word_count(testo)
