@@ -9,6 +9,7 @@ come sono, senza contenuti volatili (date, id di richiesta, ecc.).
 import json
 import os
 import re
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -22,6 +23,10 @@ ENGINE_ROOT = Path(__file__).resolve().parents[1]
 PROMPTS_DIR = ENGINE_ROOT / "prompts"
 
 META_RE = re.compile(r"<!--META(.*?)META-->", re.DOTALL)
+CITE_RE = re.compile(r"</?cite[^>]*>")
+TITLE_RE = re.compile(r"^# ", re.MULTILINE)
+
+MAX_GEN_ATTEMPTS = 3  # 1 tentativo + 2 rigenerazioni per la lunghezza
 
 
 def make_client() -> anthropic.Anthropic:
@@ -125,27 +130,60 @@ def chapter_paths(brief: Brief, assignment: ChapterAssignment) -> tuple[Path, Pa
     return out_dir / f"{stem}.md", out_dir / f"{stem}.usage.json"
 
 
-def generate_chapter(brief: Brief, assignment: ChapterAssignment) -> Path:
-    """Genera il capitolo e lo salva su disco. Idempotente: se il file esiste, non rigenera."""
-    cap_path, usage_path = chapter_paths(brief, assignment)
-    if cap_path.exists():
-        return cap_path
-    cap_path.parent.mkdir(parents=True, exist_ok=True)
+def strip_preamble(testo: str) -> tuple[str, bool]:
+    """Elimina tutto ciò che precede la prima riga che inizia con '# '.
 
-    client = make_client()
-    system = build_system_blocks(brief)
-    tools = [
-        {
-            "type": config.WEB_SEARCH_TOOL_TYPE,
-            "name": "web_search",
-            "max_uses": config.MAX_SEARCHES_PER_CHAPTER,
-        }
-    ]
-    user_message = {
-        "role": "user",
-        "content": stable_json(assignment.model_dump(mode="json")),
-    }
+    Ritorna (testo_ripulito, ok). Se nessuna riga inizia con '# ', ok è False
+    e il testo è restituito immutato (caso d'errore da segnalare a monte).
+    """
+    m = TITLE_RE.search(testo)
+    if not m:
+        return testo, False
+    return testo[m.start():], True
 
+
+def strip_cite_tags(testo: str) -> str:
+    """Rimuove i tag <cite ...> e </cite> conservando il testo che contengono."""
+    return CITE_RE.sub("", testo)
+
+
+def chapter_word_count(testo: str) -> int:
+    """Conta le parole del capitolo, dal titolo escluso il blocco META.
+
+    Il testo in ingresso è già ripulito dal preambolo (inizia con '# ').
+    """
+    body = testo.split("<!--META", 1)[0]
+    return len(body.split())
+
+
+def parse_meta(testo: str) -> dict | None:
+    """Estrae e parsa il blocco META come dict; None se assente o non parsabile."""
+    m = META_RE.search(testo)
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(1).strip())
+    except json.JSONDecodeError:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def total_web_searches(usage_log: list[dict]) -> int:
+    """Somma le ricerche web di tutte le risposte di un tentativo (pause_turn incluse)."""
+    tot = 0
+    for u in usage_log:
+        stu = u.get("server_tool_use") or {}
+        tot += stu.get("web_search_requests") or 0
+    return tot
+
+
+def run_one_generation(client, system, tools, user_content: str):
+    """Un singolo tentativo di generazione, gestendo i pause_turn della ricerca.
+
+    Ritorna (response, usage_log): la risposta finale e la lista degli usage di
+    tutte le chiamate (una sola, o più se il turno è stato messo in pausa).
+    """
+    user_message = {"role": "user", "content": user_content}
     messages = [user_message]
     usage_log = []
     while True:
@@ -162,11 +200,99 @@ def generate_chapter(brief: Brief, assignment: ChapterAssignment) -> Path:
             # si rimanda la conversazione così com'è per farla riprendere.
             messages = [user_message, {"role": "assistant", "content": response.content}]
             continue
-        break
+        return response, usage_log
 
-    testo = "".join(block.text for block in response.content if block.type == "text")
+
+def generate_chapter(
+    brief: Brief, assignment: ChapterAssignment, force: bool = False
+) -> tuple[Path, list[str]]:
+    """Genera il capitolo, lo ripulisce in modo deterministico e lo salva.
+
+    Ritorna (percorso_capitolo, warnings). Idempotente: se il file esiste già e
+    `force` è False, non rigenera. La pulizia (preambolo, tag cite) e il controllo
+    di lunghezza con rigenerazione avvengono qui, non nel prompt. Se qualcosa non
+    torna (nessun titolo, ricerche esaurite con claim aperti, lunghezza fuori banda
+    dopo i tentativi) il file viene salvato comunque ma si scrive un
+    cap_NN.WARNING.txt e si popola la lista warnings.
+    """
+    cap_path, usage_path = chapter_paths(brief, assignment)
+    if cap_path.exists() and not force:
+        return cap_path, []
+    cap_path.parent.mkdir(parents=True, exist_ok=True)
+
+    client = make_client()
+    system = build_system_blocks(brief)
+    tools = [
+        {
+            "type": config.WEB_SEARCH_TOOL_TYPE,
+            "name": "web_search",
+            "max_uses": config.MAX_SEARCHES_PER_CHAPTER,
+        }
+    ]
+    base_user = stable_json(assignment.model_dump(mode="json"))
+
+    budget = assignment.budget_parole
+    lo, hi = round(budget * 0.85), round(budget * 1.15)
+
+    warnings: list[str] = []
+    extra_note = ""
+    # Valori dell'ultimo tentativo, tenuti per il salvataggio finale.
+    response = None
+    usage_log: list[dict] = []
+    testo = ""
+
+    for tentativo in range(1, MAX_GEN_ATTEMPTS + 1):
+        user_content = base_user + extra_note
+        response, usage_log = run_one_generation(client, system, tools, user_content)
+        grezzo = "".join(block.text for block in response.content if block.type == "text")
+
+        testo, titolo_ok = strip_preamble(grezzo)
+        if not titolo_ok:
+            # Nessuna riga di titolo: è un errore. Salvo il grezzo e segnalo.
+            testo = grezzo
+            warnings.append(
+                "Nessuna riga di titolo '# ' trovata nell'output: salvato il testo "
+                "grezzo così com'è, senza pulizia del preambolo."
+            )
+            break
+
+        testo = strip_cite_tags(testo)
+        parole = chapter_word_count(testo)
+        if lo <= parole <= hi:
+            break
+
+        if tentativo < MAX_GEN_ATTEMPTS:
+            verso = "più lungo" if parole < lo else "più corto"
+            extra_note = (
+                f"\n\nREVISIONE LUNGHEZZA: il tentativo precedente era di {parole} parole, "
+                f"fuori dalla banda ammessa ({lo}-{hi}) per il budget di {budget}. "
+                f"Riscrivi il capitolo {verso}, puntando a circa {budget} parole, "
+                f"senza sacrificare i nomi concreti né il box GLI IMMOBILI."
+            )
+        else:
+            warnings.append(
+                f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
+            )
+
+    # Controllo esaurimento ricerche sull'ultimo tentativo salvato.
+    meta = parse_meta(testo)
+    claims = (meta or {}).get("claims_da_verificare") or []
+    verifica_incompleta = bool((meta or {}).get("verifica_incompleta"))
+    ricerche = total_web_searches(usage_log)
+    if ricerche >= config.MAX_SEARCHES_PER_CHAPTER and claims:
+        warnings.append(
+            f"Ricerche esaurite ({ricerche} su un tetto di "
+            f"{config.MAX_SEARCHES_PER_CHAPTER}) con {len(claims)} claim ancora in "
+            f"'claims_da_verificare': il capitolo potrebbe contenere fatti non verificati."
+        )
+    if verifica_incompleta:
+        warnings.append(
+            "Il modello ha dichiarato 'verifica_incompleta: true' nel blocco META: "
+            "ha esaurito le ricerche prima di verificare tutti i nomi che intendeva citare."
+        )
+
     cap_path.write_text(testo, encoding="utf-8")
-
     usage_path.write_text(
         json.dumps(
             {
@@ -184,4 +310,20 @@ def generate_chapter(brief: Brief, assignment: ChapterAssignment) -> Path:
     if meta_match:
         capture_assets(brief, assignment, meta_match.group(1).strip())
 
-    return cap_path
+    if warnings:
+        warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
+        warning_path.write_text(
+            "CAPITOLO NON VALIDO — problemi rilevati:\n\n"
+            + "\n".join(f"- {w}" for w in warnings)
+            + "\n",
+            encoding="utf-8",
+        )
+        print(
+            f"ATTENZIONE: capitolo {assignment.numero:02d} non valido, "
+            f"{len(warnings)} problema/i — vedi {warning_path.name}:",
+            file=sys.stderr,
+        )
+        for w in warnings:
+            print(f"  - {w}", file=sys.stderr)
+
+    return cap_path, warnings

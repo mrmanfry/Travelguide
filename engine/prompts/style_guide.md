@@ -33,6 +33,8 @@ I box sono incastonati nel punto del testo dove sono pertinenti, mai raccolti a 
 * A TAVOLA: cibo come chiave culturale, non recensioni.
 
 I nomi sono adattabili alla destinazione (BUSH TIP altrove diventa TRAIL TIP, CITY TIP) ma i sei RUOLI restano fissi.
+4-bis. GLI IMMOBILI — elemento strutturale fisso (non è un box tematico)
+Ogni capitolo di tappa si chiude con un blocco GLI IMMOBILI: le sole cose che le date del cliente decidono al posto suo — giorni fissi di mercati ed eventi, chiusure settimanali, prenotazioni da fare prima di partire, vincoli già presenti nella sua logistica. NON è uno dei sei box tematici e non ne segue le regole (nome, lunghezza, alternanza): è un elemento strutturale a sé. La forma a elenco puntato è quella giusta e va usata — l'anti-pattern "prosa-elenco" NON si applica qui, perché è per natura una lista di vincoli, non prosa camuffata da elenco. Ancoralo alle date reali prese dal calendario fornito.
 5. Onestà editoriale (regole non negoziabili)
 
 * Raccomandazioni motivate, incluse quelle in negativo. Se un'esperienza famosa non vale il prezzo, dirlo spiegando il calcolo.
@@ -51,7 +53,7 @@ I nomi sono adattabili alla destinazione (BUSH TIP altrove diventa TRAIL TIP, CI
 
 7. Anti-pattern (se compaiono, il capitolo è da rifare)
 
-* Prosa-elenco: "Da vedere ci sono X, Y e Z. X è… Y è…"
+* Prosa-elenco: "Da vedere ci sono X, Y e Z. X è… Y è…" (eccezione: il blocco strutturale GLI IMMOBILI, che è per natura una lista di vincoli)
 * Superlativi vuoti e aggettivazione turistica ("suggestivo", "incantevole", "un'esperienza unica")
 * Informazioni di servizio nell'attacco del capitolo
 * Box generici che potrebbero stare in qualunque guida della stessa destinazione

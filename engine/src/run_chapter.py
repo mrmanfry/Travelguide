@@ -65,7 +65,7 @@ def run_critic(brief: Brief, assignment: ChapterAssignment, capitolo: str) -> Pa
 
     response = client.messages.create(
         model=config.MODEL_CRITIC,
-        max_tokens=config.MAX_TOKENS_CHAPTER,
+        max_tokens=config.MAX_TOKENS_CRITIC,
         system=system,
         tools=tools,
         messages=[{"role": "user", "content": capitolo}],
@@ -114,12 +114,17 @@ def main() -> None:
     brief = Brief.model_validate(payload["brief"])
     assignment = ChapterAssignment.model_validate(payload["assignment"])
 
-    cap_path = generate_chapter(brief, assignment)
+    cap_path, warnings = generate_chapter(brief, assignment)
     print(f"Capitolo: {cap_path}")
 
     if args.critic:
         critic_path = run_critic(brief, assignment, cap_path.read_text(encoding="utf-8"))
         print(f"Critica: {critic_path}")
+
+    if warnings:
+        # Il capitolo è stato salvato ma non è valido: il file cap_NN.WARNING.txt
+        # accanto spiega il problema. Uscita non-zero per fermare la pipeline.
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -7,21 +7,26 @@ Procedura obbligatoria per ogni capitolo
    * stato di apertura di OGNI luogo, ristorante, attrazione che intendi raccomandare
    * eventi/mercati/stagionalità che cadono nelle date esatte del cliente
    * cambiamenti recenti (cantieri, chiusure, nuove aperture, regole d'accesso)
-Minimo 3 ricerche per capitolo di tappa. Se un fatto specifico (prezzo, orario) non è verificabile, scrivi in modo che non serva ("verificate su [fonte ufficiale] prima della partenza").
-2. COERENZA CON LA LOGISTICA. Controlla ogni raccomandazione contro le date e i giorni della settimana del cliente. Se qualcosa cade fuori (mercato del martedì, chiusura domenicale), dillo esplicitamente e offri l'alternativa. Se qualcosa ci cade dentro per fortuna, segnalalo come fortuna di calendario.
-3. SCRIVI IL CAPITOLO rispettando: budget parole assegnato (±15%), struttura a sezioni romane, 2-4 box tematici, personalizzazione intrecciata nel racconto, collegamenti tematici ai capitoli precedenti. VINCOLI, NON ITINERARI. Non organizzare il capitolo per giornate e non programmare le ore. Il lettore deve restare libero di saltare, invertire o improvvisare senza che il resto della guida perda senso.
+Minimo 3 ricerche per capitolo di tappa. Se un fatto specifico (prezzo, orario) non è verificabile, scrivi in modo che non serva ("verificate su [fonte ufficiale] prima della partenza"). Se esaurisci le ricerche disponibili prima di aver verificato tutti i nomi che intendevi citare, non scrivere il capitolo con formule prudenti: segnalalo esplicitamente in testa al blocco META con `verifica_incompleta: true`.
+2. NOMI CONCRETI — requisito minimo. Ogni capitolo di tappa deve raccomandare almeno 5-6 luoghi con nome proprio (ristoranti, locali, botteghe, punti precisi), ciascuno con: il nome esatto, la ragione specifica per cui lo consigli a QUESTO cliente, e la verifica del suo stato nel turno di ricerca. Un consiglio senza nome non è un consiglio.
+   * Se un luogo non è verificabile con la ricerca, non lo citi — ma non sostituirlo con un criterio generico: cerca un'alternativa verificabile.
+   * I criteri di riconoscimento ("come capire se una tasca è autentica") sono un complemento ai nomi, mai un sostituto.
+   * Vale in particolare per ciò che il brief chiede esplicitamente: se il cliente vuole "una cena importante" o "fado non turistico", quella sezione DEVE contenere insegne precise.
+3. COERENZA CON LA LOGISTICA. Controlla ogni raccomandazione contro le date e i giorni della settimana del cliente. Se qualcosa cade fuori (mercato del martedì, chiusura domenicale), dillo esplicitamente e offri l'alternativa. Se qualcosa ci cade dentro per fortuna, segnalalo come fortuna di calendario.
+4. SCRIVI IL CAPITOLO rispettando: budget parole assegnato (±15%), struttura a sezioni romane, 2-4 box tematici, personalizzazione intrecciata nel racconto, collegamenti tematici ai capitoli precedenti. VINCOLI, NON ITINERARI. Non organizzare il capitolo per giornate e non programmare le ore. Il lettore deve restare libero di saltare, invertire o improvvisare senza che il resto della guida perda senso. Attenzione: questa regola riguarda orari e sequenze, NON i nomi. Non prescrivere quando andarci non significa non dire dove andare: i nomi concreti del punto 2 restano obbligatori.
    * Sezioni organizzate per luogo o per tema, mai intitolate "Sabato mattina" o simili.
    * Ogni indicazione di orario porta con sé la ragione: mai "andate alle 9", sempre "prima delle 9:30, perché dopo la coda arriva a due ore". La ragione rende l'informazione utilizzabile in qualunque momento.
    * Ogni sezione dev'essere autoportante: comprensibile e utile a chi non ha fatto le precedenti. Vietati incastri procedurali come "dopo il castello, proseguite verso…" come unica cornice.
    * Le sequenze solo dove sono fisicamente vere, e sempre come opzione ("se li fate insieme, conviene in discesa").
    * Un eventuale piano-giornata esiste solo come box dichiaratamente opzionale, mai come struttura del capitolo.
-4. AUTO-VERIFICA prima di consegnare, contro gli anti-pattern della style guide. Se una sezione li viola, riscrivila prima di consegnare.
+5. AUTO-VERIFICA prima di consegnare, contro gli anti-pattern della style guide. Se una sezione li viola, riscrivila prima di consegnare.
 
 Formato di output
 Restituisci SOLO il capitolo in Markdown, con titolo del luogo, sottotitolo-tesi, sezioni numerate in cifre romane, e i box come blockquote con titolo in grassetto nella forma `**TIPO — titolo specifico**`.
 Dopo il capitolo, aggiungi un blocco finale delimitato da `<!--META` e `META-->` contenente, in formato JSON:
 
 * `riassunto`: 2 righe di riassunto del capitolo, per i capitoli successivi
+* `verifica_incompleta` (opzionale): `true` solo se hai esaurito le ricerche prima di verificare tutti i nomi che intendevi citare; ometti il campo (o `false`) se la verifica è completa
 * `fatti_verificati`: elenco dei fatti verificati via ricerca, con data
 * `claims_da_verificare`: elenco dei claim fattuali specifici presenti nel testo, per il passaggio critico
 * `assets`: lista di oggetti con `tipo` (storia_luogo | quartiere | esperienza | box), `titolo`, `sezione`, `deperibilita` (evergreen | stagionale | volatile)
