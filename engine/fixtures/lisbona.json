@@ -1,0 +1,49 @@
+{
+  "brief": {
+    "brief_id": "fixture-lisbona-001",
+    "lingua_guida": "it",
+    "tappe": [
+      {
+        "ordine": 1,
+        "luogo": "Lisbona",
+        "notti": 3,
+        "hotel": "Memmo Alfama, Travessa das Merceeiras 27",
+        "note_logistica": "arrivo venerdì sera, partenza lunedì mattina"
+      }
+    ],
+    "date": {"inizio": "2026-09-18", "fine": "2026-09-21", "flessibili": false},
+    "viaggiatori": {"adulti": 2, "bambini_eta": [], "occasione": "anniversario"},
+    "stile": {"avventura_relax": 2, "ritmo": 2, "budget_fascia": "medio_alto"},
+    "passioni": [
+      {"tema": "cibo", "dettaglio": "tasca autentica + una cena importante per l'anniversario"},
+      {"tema": "fotografia", "dettaglio": "street e paesaggio urbano, luce del mattino"}
+    ],
+    "oro": {
+      "da_non_perdere": ["un mercato vero, non turistico", "il fado ma non in versione per turisti"],
+      "da_evitare": ["code lunghe", "esperienze palesemente commerciali"],
+      "contesto_emotivo": "primo anniversario, weekend lento, vogliono tornare con belle foto e ricordi di tavola",
+      "note_libere": null
+    }
+  },
+  "assignment": {
+    "numero": 2,
+    "titolo_provvisorio": "Lisbona / Alfama",
+    "tappa": {
+      "ordine": 1,
+      "luogo": "Lisbona",
+      "notti": 3,
+      "hotel": "Memmo Alfama, Travessa das Merceeiras 27",
+      "note_logistica": "arrivo venerdì sera, partenza lunedì mattina"
+    },
+    "tipo": "tappa",
+    "budget_parole": 2800,
+    "outline_guida": [
+      "1. Il Portogallo in breve: il paese che guardava l'oceano",
+      "2. Lisbona / Alfama",
+      "3. Praticità, glossario e checklist"
+    ],
+    "riassunti_precedenti": [
+      "Cap. 1: introduzione al Portogallo — l'età delle scoperte, la saudade come carattere nazionale, il rapporto col mare e con la memoria imperiale."
+    ]
+  }
+}
