@@ -21,7 +21,7 @@ from src.chapter_runner import (
     clean_chapter,
     make_client,
     parse_meta,
-    run_one_generation,
+    run_verification_call,
 )
 
 
@@ -57,14 +57,17 @@ def apply_corrections(
     assignment: ChapterAssignment,
     chapter_path: Path,
     verdict: dict | None,
-) -> tuple[Path, int]:
+) -> tuple[Path, int, dict]:
     """Applica le correzioni del critico al capitolo e lo riscrive.
 
     Salva la versione pre-correzione in `cap_NN.v1.md`, poi sovrascrive
     `cap_NN.md` con la versione corretta, ripassata per le stesse pulizie
     deterministiche del generatore (preambolo, cite, troncamento post-META).
     Il correttore ha accesso alla web search (tetto `MAX_SEARCHES_CRITIC`) per
-    riverificare i fatti prima di riscriverli. Ritorna (percorso, n_parole).
+    riverificare i fatti, e al proprio tetto di token `MAX_TOKENS_FIXER` (più
+    ampio di quello del critico, perché deve riemettere un capitolo intero più
+    il META) con ritentativo automatico su troncatura. Ritorna
+    (percorso, n_parole, info): info riporta troncatura/ritentativo del correttore.
     """
     numero = assignment.numero
     chapter_text = chapter_path.read_text(encoding="utf-8")
@@ -86,15 +89,22 @@ def apply_corrections(
     ]
 
     user_content = build_fixer_user(chapter_text, alerts)
-    response, usage_log = run_one_generation(
+    response, usage_log, info = run_verification_call(
         client,
         system,
         tools,
         user_content,
         model=config.MODEL_FIXER,
-        max_tokens=config.MAX_TOKENS_CHAPTER,
+        max_tokens=config.MAX_TOKENS_FIXER,
     )
     grezzo = "".join(block.text for block in response.content if block.type == "text")
+    if info["truncated"]:
+        print(
+            f"ATTENZIONE: correzione del capitolo {numero:02d} troncata (max_tokens) "
+            "anche dopo il ritentativo col tetto raddoppiato: capitolo corretto "
+            "probabilmente incompleto.",
+            file=sys.stderr,
+        )
 
     testo, titolo_ok = clean_chapter(grezzo)
     if not titolo_ok:
@@ -108,7 +118,9 @@ def apply_corrections(
         json.dumps(
             {
                 "model": response.model,
-                "stop_reason": response.stop_reason,
+                "stop_reason": info["stop_reason"],
+                "truncated": info["truncated"],
+                "retried": info["retried"],
                 "chiamate": usage_log,
             },
             ensure_ascii=False,
@@ -134,4 +146,4 @@ def apply_corrections(
             file=sys.stderr,
         )
 
-    return chapter_path, chapter_word_count(testo)
+    return chapter_path, chapter_word_count(testo), info

@@ -21,6 +21,7 @@ from src.chapter_runner import (
     chapter_paths,
     generate_chapter,
     make_client,
+    run_verification_call,
 )
 from src.costs import scrivi_costi
 from src.fix_chapter import apply_corrections
@@ -75,12 +76,13 @@ def run_critic(
         }
     ]
 
-    response = client.messages.create(
+    response, usage_log, info = run_verification_call(
+        client,
+        system,
+        tools,
+        capitolo,
         model=config.MODEL_CRITIC,
         max_tokens=config.MAX_TOKENS_CRITIC,
-        system=system,
-        tools=tools,
-        messages=[{"role": "user", "content": capitolo}],
     )
 
     critica = "".join(block.text for block in response.content if block.type == "text")
@@ -90,18 +92,24 @@ def run_critic(
     risultato = {
         "capitolo": assignment.numero,
         "model": response.model,
-        "stop_reason": response.stop_reason,
-        "usage": response.usage.model_dump(),
+        "stop_reason": info["stop_reason"],
+        "truncated": info["truncated"],
+        "retried": info["retried"],
+        "chiamate": usage_log,
     }
     verdetto = extract_verdict(critica)
-    if verdetto is not None:
-        risultato["verdetto"] = verdetto
-    else:
-        risultato["verdetto"] = None
+    risultato["verdetto"] = verdetto
+    if verdetto is None:
         risultato["critica_raw"] = critica
         print(
             f"ATTENZIONE: risposta del critico non parsabile come JSON, "
             f"salvato il testo grezzo in 'critica_raw' ({critic_path.name})",
+            file=sys.stderr,
+        )
+    if info["truncated"]:
+        print(
+            f"ATTENZIONE: critico ({suffix}) troncato (max_tokens) anche dopo il "
+            f"ritentativo col tetto raddoppiato: verdetto non affidabile.",
             file=sys.stderr,
         )
 
@@ -110,6 +118,19 @@ def run_critic(
         encoding="utf-8",
     )
     return critic_path, risultato
+
+
+def verifica_fallita(risultato: dict) -> str | None:
+    """Motivo per cui una passata di verifica non è affidabile, o None se è ok.
+
+    Un verdetto non parsabile o una chiamata troncata (max_tokens) rendono la
+    verifica non completata: il capitolo non è consegnabile.
+    """
+    if risultato.get("truncated"):
+        return "chiamata troncata (max_tokens) anche dopo il ritentativo col tetto raddoppiato"
+    if risultato.get("verdetto") is None:
+        return "verdetto non parsabile come JSON"
+    return None
 
 
 def leggi_verdetto(risultato: dict) -> tuple[str | None, list[dict], list[dict]]:
@@ -138,17 +159,24 @@ def scrivi_gate(
     alerts: list[dict],
     corretto: bool,
     gen_warnings: list[str],
+    verifica_problemi: list[str],
 ) -> bool:
     """Applica il cancello sul verdetto del critico. Ritorna True se il capitolo è consegnabile.
 
     Non consegnabile (scrive cap_NN.WARNING.txt, stampa su stderr, il chiamante
-    esce non-zero) se restano problemi di generazione, se il verdetto è
-    "da_rifare", o se resta almeno un alert bloccante. Se il verdetto è
+    esce non-zero) se: la verifica non è stata completata (`verifica_problemi`,
+    es. verdetto perso o chiamata troncata), restano problemi di generazione, il
+    verdetto è "da_rifare", o resta almeno un alert bloccante. Se il verdetto è
     "correzioni_minori" senza bloccanti, il capitolo è consegnabile ma si segnala
     a video quanti alert restano aperti.
     """
     cap_path, _ = chapter_paths(brief, assignment)
-    fatale = bool(gen_warnings) or bool(bloccanti) or verdetto == "da_rifare"
+    fatale = (
+        bool(verifica_problemi)
+        or bool(gen_warnings)
+        or bool(bloccanti)
+        or verdetto == "da_rifare"
+    )
 
     if not fatale:
         aperti = len(alerts)
@@ -180,6 +208,13 @@ def scrivi_gate(
         f"Verdetto del critico: {verdetto if verdetto else 'non disponibile'}.",
     ]
 
+    if verifica_problemi:
+        sezioni.append("")
+        sezioni.append(
+            "LA VERIFICA NON È STATA COMPLETATA — il capitolo non può dirsi verificato:"
+        )
+        sezioni.extend(f"  - {p}" for p in verifica_problemi)
+
     if gen_warnings:
         sezioni.append("")
         sezioni.append("Problemi di generazione ancora aperti:")
@@ -199,12 +234,18 @@ def scrivi_gate(
     warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
     warning_path.write_text("\n".join(sezioni) + "\n", encoding="utf-8")
 
+    motivo_sintetico = (
+        "verifica non completata"
+        if verifica_problemi
+        else f"verdetto '{verdetto}', {len(bloccanti)} alert bloccanti"
+    )
     print(
         f"ATTENZIONE: capitolo {assignment.numero:02d} NON consegnabile "
-        f"(verdetto '{verdetto}', {len(bloccanti)} alert bloccanti) — "
-        f"vedi {warning_path.name}",
+        f"({motivo_sintetico}) — vedi {warning_path.name}",
         file=sys.stderr,
     )
+    for p in verifica_problemi:
+        print(f"  - {p}", file=sys.stderr)
     for a in bloccanti:
         print(f"  - {_sintesi_alert(a)}", file=sys.stderr)
     return False
@@ -224,7 +265,7 @@ def main() -> None:
     brief = Brief.model_validate(payload["brief"])
     assignment = ChapterAssignment.model_validate(payload["assignment"])
 
-    cap_path, gen_warnings = generate_chapter(brief, assignment)
+    cap_path, gen_warnings, gen_info = generate_chapter(brief, assignment)
     print(f"Capitolo: {cap_path}")
 
     if not args.critic:
@@ -233,26 +274,40 @@ def main() -> None:
             sys.exit(1)
         return
 
+    # Problemi di verifica: verdetti persi, chiamate troncate, claim non chiusi.
+    # Se non è vuoto, il capitolo non è consegnabile.
+    verifica_problemi: list[str] = []
+
     # Genera → critica.
     critic_path, risultato = run_critic(
         brief, assignment, cap_path.read_text(encoding="utf-8")
     )
     print(f"Critica: {critic_path}")
     verdetto, bloccanti, alerts = leggi_verdetto(risultato)
+    motivo = verifica_fallita(risultato)
+    if motivo:
+        verifica_problemi.append(f"Critico: {motivo}.")
 
-    # → se ci sono bloccanti (o verdetto "da_rifare"), applica le correzioni una
-    # volta sola → ri-critica → ri-valuta. Massimo un giro, per non entrare in
-    # cicli costosi.
+    # → se il critico è affidabile e ci sono bloccanti (o verdetto "da_rifare"),
+    # applica le correzioni una volta sola → ri-critica → ri-valuta. Massimo un
+    # giro, per non entrare in cicli costosi. Se il verdetto è perso non si
+    # corregge: non si sa cosa correggere.
     corretto = False
-    if bloccanti or verdetto == "da_rifare":
+    if not motivo and (bloccanti or verdetto == "da_rifare"):
         print(
             f"Verdetto '{verdetto}' con {len(bloccanti)} alert bloccanti: "
             f"avvio il loop di correzione (un giro).",
             file=sys.stderr,
         )
-        _, parole = apply_corrections(brief, assignment, cap_path, risultato.get("verdetto"))
+        _, parole, fix_info = apply_corrections(
+            brief, assignment, cap_path, risultato.get("verdetto")
+        )
         corretto = True
         print(f"Capitolo corretto: {cap_path} ({parole} parole)")
+        if fix_info.get("truncated"):
+            verifica_problemi.append(
+                "Fixer: correzione troncata (max_tokens) anche dopo il ritentativo."
+            )
 
         critic2_path, risultato = run_critic(
             brief,
@@ -262,6 +317,22 @@ def main() -> None:
         )
         print(f"Ri-critica: {critic2_path}")
         verdetto, bloccanti, alerts = leggi_verdetto(risultato)
+        motivo2 = verifica_fallita(risultato)
+        if motivo2:
+            verifica_problemi.append(f"Secondo critico: {motivo2}.")
+
+    # Gate sulle ricerche (condizione corretta): la presenza di claim_da_verificare
+    # è normale, NON un difetto. Il capitolo è problematico solo se le ricerche di
+    # generazione sono esaurite E il critico segnala claim di tipo 'fatto' rimasti
+    # aperti (non è riuscito a verificarli). verifica_incompleta: true è già
+    # gestito come warning di generazione.
+    fatti_aperti = [a for a in alerts if a.get("tipo") == "fatto"]
+    if gen_info.get("ricerche_esaurite") and fatti_aperti:
+        verifica_problemi.append(
+            f"Ricerche di generazione esaurite "
+            f"({gen_info.get('ricerche')}/{config.MAX_SEARCHES_PER_CHAPTER}) e il critico "
+            f"segnala {len(fatti_aperti)} claim di tipo 'fatto' non risolti."
+        )
 
     # Misura dei costi: aggrega gli usage di tutte le chiamate (generazione,
     # critico, fixer, secondo critico) e scrive output/{brief_id}/costi.json.
@@ -271,7 +342,14 @@ def main() -> None:
     print(f"Costi: {costi_path} (totale capitolo: {tot_str})")
 
     consegnabile = scrivi_gate(
-        brief, assignment, verdetto, bloccanti, alerts, corretto, gen_warnings
+        brief,
+        assignment,
+        verdetto,
+        bloccanti,
+        alerts,
+        corretto,
+        gen_warnings,
+        verifica_problemi,
     )
     if not consegnabile:
         sys.exit(1)

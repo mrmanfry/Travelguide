@@ -244,21 +244,52 @@ def run_one_generation(
         return response, usage_log
 
 
+def run_verification_call(client, system, tools, user_content, model, max_tokens):
+    """Chiamata di verifica (critico/fixer) con un ritentativo su troncatura.
+
+    Come run_one_generation gestisce i pause_turn della ricerca; in più, se il
+    turno finale è troncato (stop_reason 'max_tokens' — tipico su Sonnet 5, dove
+    il thinking adattivo può esaurire il budget di output prima della risposta)
+    ritenta UNA sola volta con il tetto raddoppiato. Ritorna
+    (response, usage_log, info): usage_log include tutte le risposte, ritentativo
+    compreso, così il costo del ritentativo resta tracciato; info riporta se c'è
+    stata troncatura e/o ritentativo.
+    """
+    response, usage_log = run_one_generation(
+        client, system, tools, user_content, model=model, max_tokens=max_tokens
+    )
+    retried = False
+    if response.stop_reason == "max_tokens":
+        retried = True
+        response, usage_log_2 = run_one_generation(
+            client, system, tools, user_content, model=model, max_tokens=max_tokens * 2
+        )
+        usage_log = usage_log + usage_log_2
+    info = {
+        "retried": retried,
+        "truncated": response.stop_reason == "max_tokens",
+        "stop_reason": response.stop_reason,
+    }
+    return response, usage_log, info
+
+
 def generate_chapter(
     brief: Brief, assignment: ChapterAssignment, force: bool = False
-) -> tuple[Path, list[str]]:
+) -> tuple[Path, list[str], dict]:
     """Genera il capitolo, lo ripulisce in modo deterministico e lo salva.
 
-    Ritorna (percorso_capitolo, warnings). Idempotente: se il file esiste già e
-    `force` è False, non rigenera. La pulizia (preambolo, tag cite) e il controllo
-    di lunghezza con rigenerazione avvengono qui, non nel prompt. Se qualcosa non
-    torna (nessun titolo, ricerche esaurite con claim aperti, lunghezza fuori banda
-    dopo i tentativi) il file viene salvato comunque ma si scrive un
-    cap_NN.WARNING.txt e si popola la lista warnings.
+    Ritorna (percorso_capitolo, warnings, gen_info). Idempotente: se il file
+    esiste già e `force` è False, non rigenera. La pulizia (preambolo, tag cite)
+    e il controllo di lunghezza con rigenerazione avvengono qui, non nel prompt.
+    `gen_info` espone i fatti che servono al gate a valle (ricerche totali, se
+    sono esaurite, se il modello ha dichiarato `verifica_incompleta`). Se qualcosa
+    non torna (nessun titolo, lunghezza fuori banda dopo i tentativi, META
+    mancante) il file viene salvato comunque ma si scrive cap_NN.WARNING.txt e si
+    popola la lista warnings.
     """
     cap_path, usage_path = chapter_paths(brief, assignment)
     if cap_path.exists() and not force:
-        return cap_path, []
+        return cap_path, [], {}
     cap_path.parent.mkdir(parents=True, exist_ok=True)
 
     client = make_client()
@@ -341,22 +372,27 @@ def generate_chapter(
                     "inerte, nessun asset estratto)."
                 )
 
-    # Controllo esaurimento ricerche sull'ultimo tentativo salvato.
+    # Segnali sull'ultimo tentativo salvato. NOTA: la presenza di voci in
+    # `claims_da_verificare` NON è un difetto — per progetto è la lista che lo
+    # scrittore passa al critico, quindi è normale che sia piena. L'unico segnale
+    # di generazione che vale è `verifica_incompleta: true`, dichiarato dal
+    # modello quando esaurisce le ricerche prima di verificare i nomi che
+    # intendeva citare. La condizione "ricerche esaurite + claim non verificati"
+    # è valutata a valle dal gate, che ha in mano anche l'esito del critico.
     meta = parse_meta(testo)
-    claims = (meta or {}).get("claims_da_verificare") or []
     verifica_incompleta = bool((meta or {}).get("verifica_incompleta"))
     ricerche = total_web_searches(usage_log)
-    if ricerche >= config.MAX_SEARCHES_PER_CHAPTER and claims:
-        warnings.append(
-            f"Ricerche esaurite ({ricerche} su un tetto di "
-            f"{config.MAX_SEARCHES_PER_CHAPTER}) con {len(claims)} claim ancora in "
-            f"'claims_da_verificare': il capitolo potrebbe contenere fatti non verificati."
-        )
     if verifica_incompleta:
         warnings.append(
             "Il modello ha dichiarato 'verifica_incompleta: true' nel blocco META: "
             "ha esaurito le ricerche prima di verificare tutti i nomi che intendeva citare."
         )
+
+    gen_info = {
+        "ricerche": ricerche,
+        "ricerche_esaurite": ricerche >= config.MAX_SEARCHES_PER_CHAPTER,
+        "verifica_incompleta": verifica_incompleta,
+    }
 
     cap_path.write_text(testo, encoding="utf-8")
     usage_path.write_text(
@@ -364,6 +400,8 @@ def generate_chapter(
             {
                 "model": response.model,
                 "stop_reason": response.stop_reason,
+                "truncated": response.stop_reason == "max_tokens",
+                "retried": False,
                 "chiamate": usage_log,
             },
             ensure_ascii=False,
@@ -392,4 +430,4 @@ def generate_chapter(
         for w in warnings:
             print(f"  - {w}", file=sys.stderr)
 
-    return cap_path, warnings
+    return cap_path, warnings, gen_info

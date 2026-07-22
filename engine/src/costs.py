@@ -22,9 +22,13 @@ def costo_chiamata(model: str, usage: dict) -> dict:
     motivo, senza far fallire il resto della misura.
     """
     server = usage.get("server_tool_use") or {}
+    details = usage.get("output_tokens_details") or {}
     voce = {
         "input_tokens": usage.get("input_tokens", 0) or 0,
         "output_tokens": usage.get("output_tokens", 0) or 0,
+        # I thinking_tokens sono un di-cui degli output_tokens: servono a capire
+        # quanto pesa il ragionamento (rilevante sui ruoli di verifica su Sonnet).
+        "thinking_tokens": details.get("thinking_tokens", 0) or 0,
         "cache_write_tokens": usage.get("cache_creation_input_tokens", 0) or 0,
         "cache_read_tokens": usage.get("cache_read_input_tokens", 0) or 0,
         "web_search_requests": server.get("web_search_requests", 0) or 0,
@@ -48,6 +52,7 @@ def costo_chiamata(model: str, usage: dict) -> dict:
 _CAMPI_TOKEN = (
     "input_tokens",
     "output_tokens",
+    "thinking_tokens",
     "cache_write_tokens",
     "cache_read_tokens",
     "web_search_requests",
@@ -74,19 +79,24 @@ def _somma_voci(voci: list[dict]) -> dict:
     return tot
 
 
-def _voce_multipla(model: str, chiamate: list[dict]) -> dict:
-    """Voce per generatore/fixer, il cui usage è una lista di risposte (pause_turn)."""
+def _voce_da_artefatto(art: dict) -> dict:
+    """Voce di costo per una chiamata a partire dal suo artefatto di usage.
+
+    L'artefatto ha `chiamate` (lista di risposte, pause_turn e ritentativo
+    inclusi) e i flag `truncated`/`retried`. Per retro-compatibilità accetta
+    anche un vecchio `usage` singolo. Riporta i token per categoria (thinking
+    compreso), il costo, e se la chiamata è stata troncata o ritentata.
+    """
+    model = art.get("model", "")
+    chiamate = art.get("chiamate")
+    if chiamate is None and art.get("usage"):
+        chiamate = [art["usage"]]  # schema vecchio (critici pre-revisione)
+    chiamate = chiamate or []
     voce = _somma_voci([costo_chiamata(model, u) for u in chiamate])
     voce["modello"] = model
     voce["chiamate_api"] = len(chiamate)
-    return voce
-
-
-def _voce_singola(model: str, usage: dict) -> dict:
-    """Voce per i critici, il cui usage è una singola risposta."""
-    voce = costo_chiamata(model, usage)
-    voce["modello"] = model
-    voce["chiamate_api"] = 1
+    voce["troncata"] = bool(art.get("truncated"))
+    voce["ritentata"] = bool(art.get("retried"))
     return voce
 
 
@@ -105,27 +115,19 @@ def costruisci_costi(brief: Brief, assignment: ChapterAssignment) -> dict:
     out_dir = ENGINE_ROOT / "output" / brief.brief_id
     stem = f"cap_{numero:02d}"
 
+    # (ruolo, nome file) nell'ordine della pipeline.
+    fonti = [
+        ("generazione", f"{stem}.usage.json"),
+        ("critico_1", f"{stem}.critic.json"),
+        ("fixer", f"{stem}.fix.usage.json"),
+        ("critico_2", f"{stem}.critic2.json"),
+    ]
+
     chiamate: dict[str, dict] = {}
-
-    gen = _leggi_json(out_dir / f"{stem}.usage.json")
-    if gen:
-        chiamate["generazione"] = _voce_multipla(
-            gen.get("model", ""), gen.get("chiamate") or []
-        )
-
-    crit1 = _leggi_json(out_dir / f"{stem}.critic.json")
-    if crit1 and crit1.get("usage"):
-        chiamate["critico_1"] = _voce_singola(crit1.get("model", ""), crit1["usage"])
-
-    fix = _leggi_json(out_dir / f"{stem}.fix.usage.json")
-    if fix:
-        chiamate["fixer"] = _voce_multipla(
-            fix.get("model", ""), fix.get("chiamate") or []
-        )
-
-    crit2 = _leggi_json(out_dir / f"{stem}.critic2.json")
-    if crit2 and crit2.get("usage"):
-        chiamate["critico_2"] = _voce_singola(crit2.get("model", ""), crit2["usage"])
+    for ruolo, nome in fonti:
+        art = _leggi_json(out_dir / nome)
+        if art and (art.get("chiamate") or art.get("usage")):
+            chiamate[ruolo] = _voce_da_artefatto(art)
 
     return {
         "brief_id": brief.brief_id,

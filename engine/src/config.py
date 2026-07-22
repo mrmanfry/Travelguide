@@ -10,8 +10,13 @@ MODEL_FIXER = "claude-sonnet-5"
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
 MAX_TOKENS_CHAPTER = 16000
-MAX_TOKENS_CRITIC = 4000
-MAX_SEARCHES_PER_CHAPTER = 20
+# Tetti generosi per i ruoli di verifica: su Sonnet 5 il thinking adattivo è
+# attivo di default e consuma il budget di output prima della risposta. Con
+# tetti bassi (es. 4000) il verdetto veniva troncato e perso. Il fixer riemette
+# un capitolo intero più il META, quindi ha bisogno di più margine del critico.
+MAX_TOKENS_CRITIC = 16000
+MAX_TOKENS_FIXER = 20000
+MAX_SEARCHES_PER_CHAPTER = 30
 MAX_SEARCHES_CRITIC = 15
 
 ASSETS_DB = "output/assets.sqlite"
