@@ -437,40 +437,54 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
         )
         corretto = True
         print(f"Capitolo corretto: {cap_path} ({parole} parole)")
-        if fix_info.get("truncated"):
-            verifica_problemi.append(
-                "Fixer: correzione troncata (max_tokens) anche dopo il ritentativo."
-            )
 
-        capitolo_corretto = cap_path.read_text(encoding="utf-8")
-        meta_corretto = parse_meta(capitolo_corretto) or {}
-        correzioni_applicate = meta_corretto.get("correzioni_applicate") or []
-        critic2_path, risultato = run_critic(
-            brief,
-            assignment,
-            capitolo_corretto,
-            suffix="critic2",
-            seconda_passata=True,
-            correzioni_applicate=correzioni_applicate,
-            alert_primo_giro=alert_primo_giro,
-        )
-        print(f"Ri-critica (mandato ristretto): {critic2_path}")
-        verdetto, bloccanti, alerts = leggi_verdetto(risultato)
-        motivo2 = verifica_fallita(risultato)
-        if motivo2:
-            verifica_problemi.append(f"Secondo critico: {motivo2}.")
-
-        # I bloccanti 'non_verificabile' della seconda passata NON bloccano la
-        # consegna: sono lacune di verifica su punti che il primo critico aveva
-        # già in carico, non errori accertati.
-        bloccanti_non_verif = [a for a in bloccanti if a.get("non_verificabile")]
-        if bloccanti_non_verif:
-            bloccanti = [a for a in bloccanti if not a.get("non_verificabile")]
+        if not fix_info.get("promoted"):
+            # Il fixer non ha prodotto una correzione valida: l'originale è stato
+            # mantenuto (mai sovrascritto). Niente seconda critica — non c'è una
+            # correzione valida da riverificare — e i problemi di validazione
+            # rendono il capitolo non consegnabile (→ stato fallito a monte).
+            for p in fix_info.get("fix_problemi", []):
+                verifica_problemi.append(f"Fixer: {p}.")
             print(
-                f"Seconda passata: {len(bloccanti_non_verif)} alert bloccanti "
-                f"'non verificabili' declassati (non bloccano la consegna).",
+                f"Fixer: nessuna correzione valida promossa per il capitolo "
+                f"{assignment.numero:02d} — originale mantenuto, seconda critica saltata.",
                 file=sys.stderr,
             )
+        else:
+            if fix_info.get("truncated"):
+                verifica_problemi.append(
+                    "Fixer: correzione troncata (max_tokens) anche dopo il ritentativo."
+                )
+
+            capitolo_corretto = cap_path.read_text(encoding="utf-8")
+            meta_corretto = parse_meta(capitolo_corretto) or {}
+            correzioni_applicate = meta_corretto.get("correzioni_applicate") or []
+            critic2_path, risultato = run_critic(
+                brief,
+                assignment,
+                capitolo_corretto,
+                suffix="critic2",
+                seconda_passata=True,
+                correzioni_applicate=correzioni_applicate,
+                alert_primo_giro=alert_primo_giro,
+            )
+            print(f"Ri-critica (mandato ristretto): {critic2_path}")
+            verdetto, bloccanti, alerts = leggi_verdetto(risultato)
+            motivo2 = verifica_fallita(risultato)
+            if motivo2:
+                verifica_problemi.append(f"Secondo critico: {motivo2}.")
+
+            # I bloccanti 'non_verificabile' della seconda passata NON bloccano la
+            # consegna: sono lacune di verifica su punti che il primo critico aveva
+            # già in carico, non errori accertati.
+            bloccanti_non_verif = [a for a in bloccanti if a.get("non_verificabile")]
+            if bloccanti_non_verif:
+                bloccanti = [a for a in bloccanti if not a.get("non_verificabile")]
+                print(
+                    f"Seconda passata: {len(bloccanti_non_verif)} alert bloccanti "
+                    f"'non verificabili' declassati (non bloccano la consegna).",
+                    file=sys.stderr,
+                )
 
     # Gate sulle ricerche di generazione: problema solo se le ricerche sono
     # esaurite E restano claim di tipo 'fatto' non risolti (la presenza di
@@ -479,9 +493,10 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
         a for a in alerts if a.get("tipo") == "fatto" and not a.get("non_verificabile")
     ]
     if gen_info.get("ricerche_esaurite") and fatti_aperti:
+        tetto_gen = gen_info.get("tetto_ricerche") or config.MAX_SEARCHES_PER_CHAPTER
         verifica_problemi.append(
             f"Ricerche di generazione esaurite "
-            f"({gen_info.get('ricerche')}/{config.MAX_SEARCHES_PER_CHAPTER}) e il critico "
+            f"({gen_info.get('ricerche')}/{tetto_gen}) e il critico "
             f"segnala {len(fatti_aperti)} claim di tipo 'fatto' non risolti."
         )
 

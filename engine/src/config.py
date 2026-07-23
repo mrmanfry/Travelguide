@@ -21,6 +21,10 @@ MAX_TOKENS_CHAPTER = 16000
 MAX_TOKENS_CRITIC = 16000
 MAX_TOKENS_FIXER = 20000
 MAX_SEARCHES_PER_CHAPTER = 30
+# I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
+# apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:
+# un tetto di ricerche più basso evita che un capitolo-ponte bruci ricerche.
+MAX_SEARCHES_NON_TAPPA = 8
 MAX_SEARCHES_CRITIC = 15
 # La seconda passata di critica ha un mandato ristretto (solo le correzioni del
 # fixer e i punti già segnalati), quindi un budget di ricerche molto più piccolo:
