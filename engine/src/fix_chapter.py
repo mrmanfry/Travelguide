@@ -53,13 +53,37 @@ def format_alerts(alerts: list[dict]) -> str:
     return "\n\n".join(parti)
 
 
-def build_fixer_user(chapter_text: str, alerts: list[dict], nota: str = "") -> str:
-    """Messaggio user del correttore: capitolo integrale + alert numerati.
+def build_fixer_user(
+    assignment: ChapterAssignment,
+    chapter_text: str,
+    alerts: list[dict],
+    nota: str = "",
+) -> str:
+    """Messaggio user del correttore: vincoli strutturali + capitolo + alert.
 
     Il capitolo serve al fixer per copiare alla lettera i frammenti `cerca`; gli
-    alert sono numerati perché ogni patch ne riporti l'indice.
+    alert sono numerati perché ogni patch ne riporti l'indice. In testa vanno i
+    vincoli strutturali concreti del capitolo (tipo, banda di lunghezza, regola
+    del box GLI IMMOBILI): sono i valori a cui le regole del system prompt si
+    ancorano, così una patch non può spostare la lunghezza fuori banda né toccare
+    l'inventario dei box.
     """
+    budget = assignment.budget_parole
+    lo, hi = round(budget * 0.85), round(budget * 1.15)
+    if assignment.tipo == "tappa":
+        regola_box = "OBBLIGATORIO (questo è un capitolo di tappa): non rimuoverlo"
+    else:
+        regola_box = (
+            f"VIETATO (tipo '{assignment.tipo}', non una tappa): non aggiungerlo, "
+            "né la dicitura «GLI IMMOBILI»"
+        )
     testo = (
+        "VINCOLI STRUTTURALI DEL CAPITOLO (le patch devono rispettarli):\n"
+        f"- Tipo capitolo: {assignment.tipo}\n"
+        f"- Banda parole ammessa: {lo}-{hi} (budget {budget}, ±15%) — le patch non "
+        "devono portare il conteggio fuori da questa banda\n"
+        f"- Box «GLI IMMOBILI»: {regola_box}\n\n"
+        "---\n\n"
         "CAPITOLO DI RIFERIMENTO (da cui copiare alla lettera i frammenti 'cerca', "
         "NON da riscrivere):\n\n"
         f"{chapter_text}\n\n"
@@ -255,7 +279,7 @@ def apply_corrections(
 
     for tentativo in range(1, MAX_FIX_ATTEMPTS + 1):
         nota = _nota_patch_fallite(fallite_prec) if (tentativo > 1 and fallite_prec) else ""
-        user_content = build_fixer_user(original_text, alerts, nota)
+        user_content = build_fixer_user(assignment, original_text, alerts, nota)
         response, usage_log, info = run_verification_call(
             client,
             system,

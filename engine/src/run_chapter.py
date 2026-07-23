@@ -395,6 +395,68 @@ def scrivi_gate(
     return False
 
 
+def _voce_revisione(a: dict, gravita: str, fonte_default: str) -> dict:
+    """Trasforma un alert del critico in una voce della lista di revisione."""
+    return {
+        "gravita": gravita,
+        "tipo": a.get("tipo", "?"),
+        "posizione": a.get("posizione", ""),
+        "problema": a.get("problema", ""),
+        "fonte": a.get("evidenza") or a.get("fonte") or fonte_default,
+    }
+
+
+def problemi_da_rivedere(
+    verdetto: str | None,
+    bloccanti: list[dict],
+    alerts: list[dict],
+    gen_warnings: list[str],
+    verifica_problemi: list[str],
+) -> list[dict]:
+    """Punti aperti di un capitolo consegnato col fixer disattivato.
+
+    Ogni voce è un dict {gravita, tipo, posizione, problema, fonte}, pronta per la
+    lista di revisione (da_rivedere.md). Marcano il capitolo: gli alert bloccanti
+    del critico, il verdetto 'da_rifare', le lacune di verifica (critico
+    troncato/perso, ricerca non avvenuta) e i warning di generazione. Gli alert
+    NON bloccanti non marcano da soli un capitolo — sono rifiniture minori — ma
+    se il capitolo è già da rivedere per gli altri motivi vengono elencati anche
+    loro, perché col fixer spento nessuno li risolve. Lista vuota = niente da
+    rivedere (capitolo pulito).
+    """
+    fonte_critico = "critico (prima passata)"
+    voci: list[dict] = [_voce_revisione(a, "bloccante", fonte_critico) for a in bloccanti]
+    if verdetto == "da_rifare":
+        voci.append(
+            {
+                "gravita": "verdetto",
+                "tipo": "verdetto",
+                "posizione": "",
+                "problema": "il critico ha emesso verdetto 'da_rifare' sul capitolo",
+                "fonte": fonte_critico,
+            }
+        )
+    voci.extend(
+        {"gravita": "verifica", "tipo": "verifica", "posizione": "", "problema": p, "fonte": "pipeline di verifica"}
+        for p in verifica_problemi
+    )
+    voci.extend(
+        {"gravita": "generazione", "tipo": "generazione", "posizione": "", "problema": w, "fonte": "generatore"}
+        for w in gen_warnings
+    )
+
+    # Solo se il capitolo è già da rivedere: elenca anche gli alert non bloccanti
+    # rimasti aperti (declassati inclusi), così la lista è completa.
+    if voci:
+        bloccanti_ids = {id(a) for a in bloccanti}
+        voci.extend(
+            _voce_revisione(a, a.get("gravita", "minore"), fonte_critico)
+            for a in alerts
+            if id(a) not in bloccanti_ids
+        )
+    return voci
+
+
 def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
     """Pipeline completa di un capitolo: genera → critica → eventuale fixer →
     seconda critica (mandato ristretto) → gate. Ritorna un dict con l'esito,
@@ -430,6 +492,8 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
             "verdetto": None,
             "riassunto": meta_finale.get("riassunto"),
             "corretto": False,
+            "da_rivedere": False,
+            "problemi_revisione": [],
             "costo": costo,
             "costo_usd": costo["totale"].get("costo_usd"),
             "problemi": problemi,
@@ -453,7 +517,7 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
     # ri-valuta. Massimo un giro. Se il verdetto è perso non si corregge: non si
     # sa cosa correggere.
     corretto = False
-    if not motivo and (bloccanti or verdetto == "da_rifare"):
+    if config.FIXER_ENABLED and not motivo and (bloccanti or verdetto == "da_rifare"):
         print(
             f"Verdetto '{verdetto}' con {len(bloccanti)} alert bloccanti: "
             f"avvio il loop di correzione (un giro).",
@@ -529,16 +593,42 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
 
     costo = costruisci_costi(brief, assignment)
 
-    consegnabile = scrivi_gate(
-        brief,
-        assignment,
-        verdetto,
-        bloccanti,
-        alerts,
-        corretto,
-        gen_warnings,
-        verifica_problemi,
-    )
+    if config.FIXER_ENABLED:
+        # Fixer attivo: vale il cancello classico (blocca la consegna sui bloccanti).
+        consegnabile = scrivi_gate(
+            brief,
+            assignment,
+            verdetto,
+            bloccanti,
+            alerts,
+            corretto,
+            gen_warnings,
+            verifica_problemi,
+        )
+        da_rivedere = False
+        problemi_revisione: list[dict] = []
+    else:
+        # Fixer disattivato: il capitolo si consegna comunque. Alert non risolti e
+        # lacune di verifica NON fermano la guida — marcano il capitolo
+        # 'da_rivedere' e finiscono nella lista di revisione. Gli unici arresti
+        # restano a monte (capitolo strutturalmente invalido) e a valle
+        # (riassunto rotto, tetto di spesa), gestiti dall'orchestratore.
+        consegnabile = True
+        problemi_revisione = problemi_da_rivedere(
+            verdetto, bloccanti, alerts, gen_warnings, verifica_problemi
+        )
+        da_rivedere = bool(problemi_revisione)
+        if da_rivedere:
+            print(
+                f"Capitolo {assignment.numero:02d} consegnato ma DA RIVEDERE: "
+                f"{len(problemi_revisione)} punto/i aperto/i (fixer disattivato).",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Capitolo {assignment.numero:02d} consegnabile "
+                f"(verdetto '{verdetto or 'non disponibile'}', nessun alert bloccante)."
+            )
 
     meta_finale = parse_meta(cap_path.read_text(encoding="utf-8")) or {}
     problemi = (
@@ -553,6 +643,8 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
         "verdetto": verdetto,
         "riassunto": meta_finale.get("riassunto"),
         "corretto": corretto,
+        "da_rivedere": da_rivedere,
+        "problemi_revisione": problemi_revisione,
         "costo": costo,
         "costo_usd": costo["totale"].get("costo_usd"),
         "problemi": problemi,

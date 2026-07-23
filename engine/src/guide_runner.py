@@ -83,6 +83,7 @@ def carica_stato(brief: Brief, assignments: list[ChapterAssignment]) -> dict:
                 "riassunto": None,
                 "costo": None,
                 "verdetto": None,
+                "problemi_revisione": [],
             }
             for a in assignments
         },
@@ -190,6 +191,62 @@ def assembla_guida(brief: Brief, assignments: list[ChapterAssignment], stato: di
     return guida_path, costi_path
 
 
+def scrivi_da_rivedere(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> Path:
+    """Scrive output/{brief_id}/da_rivedere.md: la lista di revisione da leggere
+    accanto al libro. Per ogni capitolo marcato 'da_rivedere' riporta numero,
+    titolo reale e l'elenco dei problemi aperti — uno per riga, con la fonte.
+    Se non c'è nulla da rivedere, lo scrive esplicitamente."""
+    out_dir = _guide_dir(brief)
+    capitoli = stato.get("capitoli", {})
+
+    righe = [
+        f"# Da rivedere — {brief.brief_id}",
+        "",
+        "Capitoli consegnati con alert non risolti. Col fixer disattivato le "
+        "correzioni non sono automatiche: questa è la lista da leggere accanto al "
+        "libro per decidere caso per caso.",
+        "",
+    ]
+
+    trovati = 0
+    for a in assignments:
+        e = capitoli.get(str(a.numero), {})
+        if e.get("stato") != "da_rivedere":
+            continue
+        problemi = e.get("problemi_revisione") or []
+        if not problemi:
+            continue
+        trovati += 1
+        cap_path, _ = chapter_paths(brief, a)
+        titolo = a.titolo_provvisorio
+        if cap_path.exists():
+            titolo = _titolo_capitolo(
+                cap_path.read_text(encoding="utf-8"), a.titolo_provvisorio
+            )
+        righe.append(f"## Capitolo {a.numero}: {titolo}")
+        for p in problemi:
+            gravita = p.get("gravita", "?")
+            posizione = p.get("posizione") or ""
+            testo = (p.get("problema") or "").strip()
+            fonte = (p.get("fonte") or "").strip() or "—"
+            loc = f" ({posizione})" if posizione else ""
+            righe.append(f"- [{gravita}]{loc} {testo} — fonte: {fonte}")
+        righe.append("")
+
+    if trovati == 0:
+        righe.append(
+            "Nessun capitolo da rivedere: tutti consegnati senza alert bloccanti "
+            "né lacune di verifica."
+        )
+        righe.append("")
+
+    path = out_dir / "da_rivedere.md"
+    path.write_text("\n".join(righe), encoding="utf-8")
+    return path
+
+
 # --------------------------------------------------------------- orchestrazione
 
 
@@ -213,14 +270,25 @@ def orchestrazione(brief: Brief) -> int:
     for a in assignments:
         n = str(a.numero)
         e = capitoli.setdefault(
-            n, {"stato": "da_fare", "path": None, "riassunto": None, "costo": None, "verdetto": None}
+            n,
+            {
+                "stato": "da_fare",
+                "path": None,
+                "riassunto": None,
+                "costo": None,
+                "verdetto": None,
+                "problemi_revisione": [],
+            },
         )
 
-        # Ripresa: i capitoli già approvati non si rigenerano mai.
-        if e["stato"] == "approvato":
+        # Ripresa: i capitoli già consegnati non si rigenerano mai — né gli
+        # 'approvato' né i 'da_rivedere' (col fixer spento questi ultimi sono
+        # comunque consegnati e validi, solo con alert aperti da leggere a parte).
+        if e["stato"] in ("approvato", "da_rivedere"):
             riassunti.append(e.get("riassunto") or "")
             costo_cumulato += e.get("costo") or 0.0
-            print(f"Capitolo {a.numero} già approvato: salto.")
+            etichetta = "già approvato" if e["stato"] == "approvato" else "già consegnato (da rivedere)"
+            print(f"Capitolo {a.numero} {etichetta}: salto.")
             continue
 
         # Ogni capitolo riceve outline completo (già in a.outline_guida) e i
@@ -282,12 +350,20 @@ def orchestrazione(brief: Brief) -> int:
             )
             return 1
 
-        # Capitolo ok.
-        e["stato"] = "approvato"
+        # Capitolo consegnato. Col fixer attivo è "approvato" senz'altro; col fixer
+        # spento è "da_rivedere" se restano alert non risolti — consegnato lo
+        # stesso, la guida non si ferma. In entrambi i casi il riassunto è valido.
+        if res.get("da_rivedere"):
+            e["stato"] = "da_rivedere"
+            e["problemi_revisione"] = res.get("problemi_revisione") or []
+        else:
+            e["stato"] = "approvato"
+            e["problemi_revisione"] = []
         salva_stato(brief, stato)
         riassunti.append(res["riassunto"])
+        etichetta = "approvato" if e["stato"] == "approvato" else "consegnato (DA RIVEDERE)"
         print(
-            f"Capitolo {a.numero} approvato (costo ${costo_cap:.4f}, "
+            f"Capitolo {a.numero} {etichetta} (costo ${costo_cap:.4f}, "
             f"cumulato ${costo_cumulato:.2f})."
         )
 
@@ -304,11 +380,15 @@ def orchestrazione(brief: Brief) -> int:
             )
             return 1
 
-    # Tutti approvati → assemblaggio.
+    # Tutti i capitoli consegnati → assemblaggio + lista di revisione.
     guida_path, costi_path = assembla_guida(brief, assignments, stato)
+    da_rivedere_path = scrivi_da_rivedere(brief, assignments, stato)
+    n_rivedere = sum(
+        1 for e in stato["capitoli"].values() if e.get("stato") == "da_rivedere"
+    )
     print(
-        f"\nGUIDA COMPLETA. {guida_path} | {costi_path} "
-        f"(totale ${costo_cumulato:.2f})."
+        f"\nGUIDA COMPLETA. {guida_path} | {costi_path} | {da_rivedere_path} "
+        f"({n_rivedere} capitoli da rivedere; totale ${costo_cumulato:.2f})."
     )
     return 0
 

@@ -27,6 +27,16 @@ MAX_TOKENS_CRITIC = 16000
 # Il fixer non riemette più il capitolo: produce solo un oggetto JSON di patch
 # (le sostituzioni testuali mirate), quindi un tetto molto più basso è sufficiente.
 MAX_TOKENS_FIXER = 8000
+
+# Interruttore del loop di correzione. Quando è False, il fixer E il secondo
+# critico non vengono mai chiamati: resta solo la prima passata di critica, che
+# produce gli alert. Un capitolo con alert non risolti viene comunque consegnato
+# e marcato 'da_rivedere' in stato.json (la guida prosegue), e la lista dei
+# problemi finisce in output/{brief_id}/da_rivedere.md. Per la guida che legge
+# una sola persona serve SAPERE i problemi, non ripararli in automatico: il fixer
+# è dove si concentravano costi e fallimenti del motore. Si riaccende (True)
+# quando si spedisce a clienti paganti.
+FIXER_ENABLED = False
 MAX_SEARCHES_PER_CHAPTER = 30
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
 # apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:
