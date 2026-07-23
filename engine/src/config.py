@@ -16,10 +16,11 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 MAX_TOKENS_CHAPTER = 16000
 # Tetti generosi per i ruoli di verifica: su Sonnet 5 il thinking adattivo è
 # attivo di default e consuma il budget di output prima della risposta. Con
-# tetti bassi (es. 4000) il verdetto veniva troncato e perso. Il fixer riemette
-# un capitolo intero più il META, quindi ha bisogno di più margine del critico.
+# tetti bassi (es. 4000) il verdetto veniva troncato e perso.
 MAX_TOKENS_CRITIC = 16000
-MAX_TOKENS_FIXER = 20000
+# Il fixer non riemette più il capitolo: produce solo un oggetto JSON di patch
+# (le sostituzioni testuali mirate), quindi un tetto molto più basso è sufficiente.
+MAX_TOKENS_FIXER = 8000
 MAX_SEARCHES_PER_CHAPTER = 30
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
 # apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:
