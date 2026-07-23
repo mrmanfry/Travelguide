@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
@@ -24,8 +25,22 @@ from src.chapter_runner import (
     parse_meta,
     run_verification_call,
 )
-from src.costs import scrivi_costi
+from src.costs import costruisci_costi, scrivi_costi
 from src.fix_chapter import apply_corrections, format_alerts
+
+# Pausa (secondi) prima dell'unico ritentativo del critico quando la ricerca web
+# risulta indisponibile: dà tempo al limite dello strumento di rientrare.
+PAUSA_RITENTATIVO_RICERCA_S = 60
+
+_MARKER_RICERCA_KO = (
+    "ricerca non disponibile",
+    "ricerca web indisponibile",
+    "strumento di ricerca",
+    "limite superato",
+    "non è stato disponibile",
+    "non è stata disponibile",
+    "web_search",
+)
 
 
 FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
@@ -123,28 +138,58 @@ def run_critic(
         }
     ]
 
-    response, usage_log, info = run_verification_call(
-        client,
-        system,
-        tools,
-        user_content,
-        model=config.MODEL_CRITIC,
-        max_tokens=config.MAX_TOKENS_CRITIC,
-    )
+    # Claim fattuali del capitolo (dal META): servono a capire se un critico che
+    # non conferma nulla è un problema (c'erano fatti da verificare) o no.
+    meta_cap = parse_meta(capitolo) or {}
+    ci_sono_claim = bool(meta_cap.get("claims_da_verificare"))
 
-    critica = "".join(block.text for block in response.content if block.type == "text")
     cap_path, _ = chapter_paths(brief, assignment)
     critic_path = cap_path.with_name(f"cap_{assignment.numero:02d}.{suffix}.json")
+
+    usage_totale: list[dict] = []
+    ritentato_ricerca = False
+    verdetto = None
+    critica = ""
+    info = {"truncated": False, "retried": False, "stop_reason": None}
+
+    # Al più due tentativi: se la ricerca web è indisponibile, una pausa di 60s
+    # e un solo ritentativo prima di arrendersi.
+    for tentativo in (1, 2):
+        response, usage_log, info = run_verification_call(
+            client,
+            system,
+            tools,
+            user_content,
+            model=config.MODEL_CRITIC,
+            max_tokens=config.MAX_TOKENS_CRITIC,
+        )
+        usage_totale.extend(usage_log)
+        critica = "".join(b.text for b in response.content if b.type == "text")
+        verdetto = extract_verdict(critica)
+        motivo_ricerca = motivo_verifica_ricerca(verdetto, ci_sono_claim)
+        if tentativo == 1 and motivo_ricerca and not info["truncated"]:
+            ritentato_ricerca = True
+            print(
+                f"ATTENZIONE: critico ({suffix}): {motivo_ricerca}. Pausa "
+                f"{PAUSA_RITENTATIVO_RICERCA_S}s e un solo ritentativo…",
+                file=sys.stderr,
+            )
+            time.sleep(PAUSA_RITENTATIVO_RICERCA_S)
+            continue
+        break
+
+    motivo_ricerca_finale = motivo_verifica_ricerca(verdetto, ci_sono_claim)
 
     risultato = {
         "capitolo": assignment.numero,
         "model": response.model,
         "stop_reason": info["stop_reason"],
         "truncated": info["truncated"],
-        "retried": info["retried"],
-        "chiamate": usage_log,
+        "retried": bool(info["retried"]) or ritentato_ricerca,
+        "ricerca_ritentata": ritentato_ricerca,
+        "motivo_ricerca": motivo_ricerca_finale,
+        "chiamate": usage_totale,
     }
-    verdetto = extract_verdict(critica)
     risultato["verdetto"] = verdetto
     if verdetto is None:
         risultato["critica_raw"] = critica
@@ -159,6 +204,12 @@ def run_critic(
             f"ritentativo col tetto raddoppiato: verdetto non affidabile.",
             file=sys.stderr,
         )
+    if motivo_ricerca_finale:
+        print(
+            f"ATTENZIONE: critico ({suffix}): {motivo_ricerca_finale} "
+            "(anche dopo il ritentativo).",
+            file=sys.stderr,
+        )
 
     critic_path.write_text(
         json.dumps(risultato, ensure_ascii=False, indent=2),
@@ -167,16 +218,58 @@ def run_critic(
     return critic_path, risultato
 
 
+def _ricerca_indisponibile(verdict: dict) -> bool:
+    """True se il verdetto indica che la ricerca web non ha funzionato.
+
+    Segnale primario deterministico: il campo `ricerca_disponibile: false`
+    (emesso dal critico). Fallback euristico: un alert la cui prosa nomina
+    esplicitamente il fallimento dello strumento di ricerca.
+    """
+    if verdict.get("ricerca_disponibile") is False:
+        return True
+    for a in verdict.get("alerts") or []:
+        if not isinstance(a, dict):
+            continue
+        testo = f"{a.get('problema', '')} {a.get('evidenza', '')}".lower()
+        if any(k in testo for k in _MARKER_RICERCA_KO):
+            return True
+    return False
+
+
+def motivo_verifica_ricerca(verdict: dict | None, ci_sono_claim: bool) -> str | None:
+    """Motivo per cui la verifica fattuale non è avvenuta, o None se è a posto.
+
+    Due casi: la ricerca è dichiarata indisponibile; oppure il critico non ha
+    confermato NESSUN fatto pur essendoci claim fattuali da verificare (segno che
+    la verifica non è avvenuta davvero).
+    """
+    if not isinstance(verdict, dict):
+        return None
+    if _ricerca_indisponibile(verdict):
+        return "lo strumento di ricerca web è risultato indisponibile: verifica fattuale non eseguita"
+    fatti = verdict.get("fatti_confermati") or []
+    if ci_sono_claim and not fatti:
+        return (
+            "il critico non ha confermato alcun fatto pur essendoci claim fattuali "
+            "da verificare: verifica fattuale non avvenuta"
+        )
+    return None
+
+
 def verifica_fallita(risultato: dict) -> str | None:
     """Motivo per cui una passata di verifica non è affidabile, o None se è ok.
 
-    Un verdetto non parsabile o una chiamata troncata (max_tokens) rendono la
-    verifica non completata: il capitolo non è consegnabile.
+    Rendono la verifica non completata (capitolo non consegnabile): un verdetto
+    non parsabile, una chiamata troncata (max_tokens), o una verifica fattuale
+    non avvenuta (ricerca indisponibile / nessun fatto confermato con claim
+    aperti) — rilevata in run_critic e riportata in `motivo_ricerca`.
     """
     if risultato.get("truncated"):
         return "chiamata troncata (max_tokens) anche dopo il ritentativo col tetto raddoppiato"
     if risultato.get("verdetto") is None:
         return "verdetto non parsabile come JSON"
+    if risultato.get("motivo_ricerca"):
+        return risultato["motivo_ricerca"]
     return None
 
 
@@ -302,31 +395,19 @@ def scrivi_gate(
     return False
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Genera un capitolo della guida di viaggio.")
-    parser.add_argument("input", help="File JSON con le chiavi 'brief' e 'assignment'")
-    parser.add_argument("--critic", action="store_true", help="Esegue anche la passata di critica")
-    args = parser.parse_args()
+def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
+    """Pipeline completa di un capitolo: genera → critica → eventuale fixer →
+    seconda critica (mandato ristretto) → gate. Ritorna un dict con l'esito,
+    SENZA uscire dal processo — così è riusabile sia dalla CLI del singolo
+    capitolo sia dall'orchestratore dell'intera guida.
 
-    input_path = Path(args.input)
-    if not input_path.is_absolute() and not input_path.exists():
-        input_path = ENGINE_ROOT / args.input
-
-    payload = json.loads(input_path.read_text(encoding="utf-8"))
-    brief = Brief.model_validate(payload["brief"])
-    assignment = ChapterAssignment.model_validate(payload["assignment"])
-
+    Chiavi del dict: consegnabile (bool), numero, cap_path, verdetto, riassunto
+    (dal META finale), corretto (bool), costo (dict di costruisci_costi),
+    costo_usd (float|None), problemi (list[str]).
+    """
     cap_path, gen_warnings, gen_info = generate_chapter(brief, assignment)
     print(f"Capitolo: {cap_path}")
 
-    if not args.critic:
-        # Senza critica non c'è cancello: valgono solo i warning di generazione.
-        if gen_warnings:
-            sys.exit(1)
-        return
-
-    # Problemi di verifica: verdetti persi, chiamate troncate, claim non chiusi.
-    # Se non è vuoto, il capitolo non è consegnabile.
     verifica_problemi: list[str] = []
 
     # Genera → critica (prima passata, mandato pieno).
@@ -342,8 +423,8 @@ def main() -> None:
 
     # → se il critico è affidabile e ci sono bloccanti (o verdetto "da_rifare"),
     # applica le correzioni una volta sola → ri-critica (mandato ristretto) →
-    # ri-valuta. Massimo un giro, per non entrare in cicli costosi. Se il verdetto
-    # è perso non si corregge: non si sa cosa correggere.
+    # ri-valuta. Massimo un giro. Se il verdetto è perso non si corregge: non si
+    # sa cosa correggere.
     corretto = False
     if not motivo and (bloccanti or verdetto == "da_rifare"):
         print(
@@ -361,8 +442,6 @@ def main() -> None:
                 "Fixer: correzione troncata (max_tokens) anche dopo il ritentativo."
             )
 
-        # Seconda passata a mandato ristretto: verifica solo le correzioni del
-        # fixer (dal META del capitolo corretto) e gli alert del primo giro.
         capitolo_corretto = cap_path.read_text(encoding="utf-8")
         meta_corretto = parse_meta(capitolo_corretto) or {}
         correzioni_applicate = meta_corretto.get("correzioni_applicate") or []
@@ -383,8 +462,7 @@ def main() -> None:
 
         # I bloccanti 'non_verificabile' della seconda passata NON bloccano la
         # consegna: sono lacune di verifica su punti che il primo critico aveva
-        # già in carico, non errori accertati (il primo giro li ha verificati a
-        # mandato pieno). Restano visibili come alert aperti non bloccanti.
+        # già in carico, non errori accertati.
         bloccanti_non_verif = [a for a in bloccanti if a.get("non_verificabile")]
         if bloccanti_non_verif:
             bloccanti = [a for a in bloccanti if not a.get("non_verificabile")]
@@ -394,11 +472,9 @@ def main() -> None:
                 file=sys.stderr,
             )
 
-    # Gate sulle ricerche (condizione corretta): la presenza di claim_da_verificare
-    # è normale, NON un difetto. Il capitolo è problematico solo se le ricerche di
-    # generazione sono esaurite E il critico segnala claim di tipo 'fatto' rimasti
-    # aperti (non è riuscito a verificarli). verifica_incompleta: true è già
-    # gestito come warning di generazione.
+    # Gate sulle ricerche di generazione: problema solo se le ricerche sono
+    # esaurite E restano claim di tipo 'fatto' non risolti (la presenza di
+    # claims_da_verificare è normale, non un difetto).
     fatti_aperti = [
         a for a in alerts if a.get("tipo") == "fatto" and not a.get("non_verificabile")
     ]
@@ -409,12 +485,7 @@ def main() -> None:
             f"segnala {len(fatti_aperti)} claim di tipo 'fatto' non risolti."
         )
 
-    # Misura dei costi: aggrega gli usage di tutte le chiamate (generazione,
-    # critico, fixer, secondo critico) e scrive output/{brief_id}/costi.json.
-    costi_path, costi = scrivi_costi(brief, assignment)
-    tot = costi["totale"].get("costo_usd")
-    tot_str = f"${tot:.4f}" if tot is not None else "non disponibile"
-    print(f"Costi: {costi_path} (totale capitolo: {tot_str})")
+    costo = costruisci_costi(brief, assignment)
 
     consegnabile = scrivi_gate(
         brief,
@@ -426,7 +497,54 @@ def main() -> None:
         gen_warnings,
         verifica_problemi,
     )
-    if not consegnabile:
+
+    meta_finale = parse_meta(cap_path.read_text(encoding="utf-8")) or {}
+    problemi = (
+        list(verifica_problemi)
+        + list(gen_warnings)
+        + [_sintesi_alert(a) for a in bloccanti]
+    )
+    return {
+        "numero": assignment.numero,
+        "consegnabile": consegnabile,
+        "cap_path": str(cap_path),
+        "verdetto": verdetto,
+        "riassunto": meta_finale.get("riassunto"),
+        "corretto": corretto,
+        "costo": costo,
+        "costo_usd": costo["totale"].get("costo_usd"),
+        "problemi": problemi,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Genera un capitolo della guida di viaggio.")
+    parser.add_argument("input", help="File JSON con le chiavi 'brief' e 'assignment'")
+    parser.add_argument("--critic", action="store_true", help="Esegue anche la passata di critica")
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    if not input_path.is_absolute() and not input_path.exists():
+        input_path = ENGINE_ROOT / args.input
+
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    brief = Brief.model_validate(payload["brief"])
+    assignment = ChapterAssignment.model_validate(payload["assignment"])
+
+    if not args.critic:
+        # Senza critica non c'è cancello: valgono solo i warning di generazione.
+        cap_path, gen_warnings, _ = generate_chapter(brief, assignment)
+        print(f"Capitolo: {cap_path}")
+        if gen_warnings:
+            sys.exit(1)
+        return
+
+    res = esegui_capitolo(brief, assignment)
+    costi_path, costi = scrivi_costi(brief, assignment)
+    tot = costi["totale"].get("costo_usd")
+    tot_str = f"${tot:.4f}" if tot is not None else "non disponibile"
+    print(f"Costi: {costi_path} (totale capitolo: {tot_str})")
+    if not res["consegnabile"]:
         sys.exit(1)
 
 

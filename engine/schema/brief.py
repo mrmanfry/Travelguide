@@ -76,7 +76,16 @@ class ChapterAssignment(BaseModel):
     numero: int
     titolo_provvisorio: str
     tappa: Optional[Tappa] = None
-    tipo: Literal["introduzione", "tappa", "apparati"] = "tappa"
+    tipo: Literal[
+        "introduzione",
+        "contesto",
+        "tappa",
+        "collegamento",
+        "apparati",
+    ] = "tappa"
     budget_parole: int
+    # Confine tematico: cosa il capitolo tratta e cosa lascia agli altri, deciso
+    # una volta nell'outline per evitare sovrapposizioni tra capitoli.
+    confine_tematico: Optional[str] = None
     outline_guida: list[str] = Field(default_factory=list)
     riassunti_precedenti: list[str] = Field(default_factory=list)

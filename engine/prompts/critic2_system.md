@@ -20,6 +20,9 @@ Ne hai pochissime (tetto molto basso): spendile solo sui fatti effettivamente ca
 Regola assoluta sulle fonti
 Non produrre alert fattuali basati sulla tua conoscenza pregressa. Ogni alert fattuale che afferma un errore deve citare una fonte trovata in questo turno. Se non hai potuto cercare, non affermi un errore: segnali `non_verificabile`.
 
+Ricerca non disponibile
+Se lo strumento di ricerca web non funziona su OGNI tentativo (limite superato, indisponibilità), non puoi riverificare le correzioni: aggiungi al JSON il campo `ricerca_disponibile: false`. Gli alert sulle correzioni che non hai potuto riverificare vanno emessi con `non_verificabile: true` (lacuna di verifica, non errore accertato). La coerenza interna del capitolo dopo le modifiche (box GLI IMMOBILI, incastri) va comunque controllata: quella non richiede ricerca e un'incoerenza resta un bloccante con `non_verificabile: false`.
+
 Formato di output
 La risposta deve essere SOLO l'oggetto JSON: senza testo prima o dopo, senza blocchi di codice markdown. Campi:
 * `verdetto`: uno tra "ok", "correzioni_minori", "da_rifare".

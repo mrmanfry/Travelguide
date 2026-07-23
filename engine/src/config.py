@@ -6,6 +6,10 @@
 MODEL_GENERATION = "claude-opus-4-8"
 MODEL_CRITIC = "claude-sonnet-5"
 MODEL_FIXER = "claude-sonnet-5"
+# L'outline è ragionamento strutturale, senza ricerca: sta su Opus per qualità,
+# ma è una sola chiamata piccola (pochi centesimi).
+MODEL_OUTLINE = "claude-opus-4-8"
+MAX_TOKENS_OUTLINE = 4000
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
@@ -24,6 +28,10 @@ MAX_SEARCHES_CRITIC = 15
 MAX_SEARCHES_CRITIC_2 = 6
 
 ASSETS_DB = "output/assets.sqlite"
+
+# Tetto di spesa dell'intera guida in USD: controllato cumulativamente durante
+# l'orchestrazione. Superato il tetto, la guida si ferma.
+MAX_COSTO_GUIDA_USD = 40.0
 
 # Tabella prezzi in USD per 1 milione di token, per modello (listino pubblico
 # Anthropic). `cache_write` è il costo di scrittura in cache con TTL 5 minuti

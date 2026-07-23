@@ -1,0 +1,49 @@
+{
+  "brief": {
+    "brief_id": "fixture-portogallo-001",
+    "lingua_guida": "it",
+    "tappe": [
+      {
+        "ordine": 1,
+        "luogo": "Lisbona",
+        "notti": 3,
+        "hotel": "Memmo Alfama, Travessa das Merceeiras 27",
+        "note_logistica": "arrivo sabato 5 settembre, prima tappa del viaggio"
+      },
+      {
+        "ordine": 2,
+        "luogo": "Óbidos",
+        "notti": 1,
+        "hotel": null,
+        "note_logistica": "sosta breve tra Lisbona e Coimbra, borgo murato"
+      },
+      {
+        "ordine": 3,
+        "luogo": "Coimbra",
+        "notti": 2,
+        "hotel": null,
+        "note_logistica": "città universitaria, tappa intermedia"
+      },
+      {
+        "ordine": 4,
+        "luogo": "Porto",
+        "notti": 4,
+        "hotel": null,
+        "note_logistica": "ultima tappa, partenza da Porto martedì 15 settembre"
+      }
+    ],
+    "date": {"inizio": "2026-09-05", "fine": "2026-09-15", "flessibili": false},
+    "viaggiatori": {"adulti": 2, "bambini_eta": [], "occasione": "anniversario"},
+    "stile": {"avventura_relax": 2, "ritmo": 2, "budget_fascia": "medio_alto"},
+    "passioni": [
+      {"tema": "cibo", "dettaglio": "tasca autentica + una cena importante per l'anniversario"},
+      {"tema": "fotografia", "dettaglio": "street e paesaggio urbano, luce del mattino"}
+    ],
+    "oro": {
+      "da_non_perdere": ["un mercato vero, non turistico", "il fado ma non in versione per turisti"],
+      "da_evitare": ["code lunghe", "esperienze palesemente commerciali"],
+      "contesto_emotivo": "anniversario, viaggio lento attraverso il paese, vogliono tornare con belle foto e ricordi di tavola",
+      "note_libere": null
+    }
+  }
+}
