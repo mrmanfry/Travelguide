@@ -408,6 +408,33 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
     cap_path, gen_warnings, gen_info = generate_chapter(brief, assignment)
     print(f"Capitolo: {cap_path}")
 
+    # Il critico non deve MAI vedere un capitolo strutturalmente rotto (niente
+    # titolo, niente META, fuori banda, box sbagliato): se la generazione non ha
+    # prodotto un capitolo valido dopo i tentativi, si fallisce subito, senza
+    # chiamare (e pagare) il critico su un file degenere.
+    if not gen_info.get("valido", True):
+        costo = costruisci_costi(brief, assignment)
+        problemi = list(gen_warnings) or [
+            "capitolo strutturalmente non valido dopo i tentativi di generazione"
+        ]
+        print(
+            f"ATTENZIONE: capitolo {assignment.numero:02d} strutturalmente non valido "
+            "— critico NON chiamato, capitolo non consegnabile.",
+            file=sys.stderr,
+        )
+        meta_finale = parse_meta(cap_path.read_text(encoding="utf-8")) or {}
+        return {
+            "numero": assignment.numero,
+            "consegnabile": False,
+            "cap_path": str(cap_path),
+            "verdetto": None,
+            "riassunto": meta_finale.get("riassunto"),
+            "corretto": False,
+            "costo": costo,
+            "costo_usd": costo["totale"].get("costo_usd"),
+            "problemi": problemi,
+        }
+
     verifica_problemi: list[str] = []
 
     # Genera → critica (prima passata, mandato pieno).

@@ -36,14 +36,46 @@ def _guide_dir(brief: Brief) -> Path:
 # ---------------------------------------------------------------- stato / ripresa
 
 
+BASE_STORICO_USD = 15.0  # base dichiarata quando lo storico non è ricostruibile
+
+
+def _seed_storico(brief: Brief, assignments: list[ChapterAssignment]) -> float:
+    """Base dello speso storico per un brief.
+
+    Lo storico deve sommare TUTTI i run sullo stesso brief_id, anche i tentativi
+    falliti, ma gli artefatti conservano solo l'ultimo tentativo per capitolo:
+    ciò che è stato speso in tentativi poi sovrascritti non è più recuperabile.
+    Si ricostruisce quindi il minimo verificabile dagli artefatti presenti e, se
+    resta sotto la base dichiarata di $15 (quasi certamente più bassa dello speso
+    reale), si parte da quella base.
+    """
+    ricostruito = 0.0
+    for a in assignments:
+        cap_path, _ = chapter_paths(brief, a)
+        if cap_path.exists():
+            try:
+                ricostruito += costruisci_costi(brief, a)["totale"].get("costo_usd") or 0.0
+            except Exception:
+                pass
+    return round(max(ricostruito, BASE_STORICO_USD), 6)
+
+
 def carica_stato(brief: Brief, assignments: list[ChapterAssignment]) -> dict:
-    """Carica lo stato della guida, o lo inizializza (tutti i capitoli 'da_fare')."""
+    """Carica lo stato della guida, o lo inizializza (tutti i capitoli 'da_fare').
+
+    Garantisce sempre il campo `speso_storico_usd`: accumulatore monotòno dello
+    speso su tutti i run del brief, seminato dalla base ricostruita/dichiarata.
+    """
     path = _guide_dir(brief) / "stato.json"
     if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
+        stato = json.loads(path.read_text(encoding="utf-8"))
+        if "speso_storico_usd" not in stato:
+            stato["speso_storico_usd"] = _seed_storico(brief, assignments)
+        return stato
     return {
         "brief_id": brief.brief_id,
         "costo_outline": 0.0,
+        "speso_storico_usd": _seed_storico(brief, assignments),
         "capitoli": {
             str(a.numero): {
                 "stato": "da_fare",
@@ -143,8 +175,11 @@ def assembla_guida(brief: Brief, assignments: list[ChapterAssignment], stato: di
         json.dumps(
             {
                 "brief_id": brief.brief_id,
+                # In testa: il totale storico su TUTTI i run del brief (tentativi
+                # falliti inclusi), non solo l'ultimo assemblaggio.
+                "totale_storico_usd": round(float(stato.get("speso_storico_usd") or 0.0), 6),
                 "costo_outline_usd": float(stato.get("costo_outline") or 0.0),
-                "totale_usd": round(totale, 6),
+                "totale_ultimo_assemblaggio_usd": round(totale, 6),
                 "capitoli": dettaglio_costi,
             },
             ensure_ascii=False,
@@ -199,6 +234,10 @@ def orchestrazione(brief: Brief) -> int:
 
         costo_cap = res.get("costo_usd") or 0.0
         costo_cumulato += costo_cap
+        # Accumulatore storico: ogni tentativo si somma, anche quelli falliti.
+        stato["speso_storico_usd"] = round(
+            (stato.get("speso_storico_usd") or 0.0) + costo_cap, 6
+        )
         e.update(
             {
                 "path": res["cap_path"],

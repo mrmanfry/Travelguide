@@ -10,7 +10,10 @@ Regole della struttura — vincolanti
    * un giro di più tappe nello stesso paese → 2.500-4.000 parole (può essere un capitolo solo);
    * viaggio lungo che attraversa il paese → fino a 3 capitoli di contesto.
    Scegli tu quanti in base a quante tappe ci sono e a quanto il viaggio attraversa il paese.
-3. UN capitolo per ogni tappa con ALMENO 2 notti (tipo `tappa`, 2.500-3.500 parole, in proporzione alle notti: più notti → verso il massimo). Associa la tappa corrispondente del brief tramite `tappa_ordine`.
+3. UN capitolo per ogni tappa con ALMENO 2 notti (tipo `tappa`). Il budget parole va alla DENSITÀ, non alle notti: dipende da quanto c'è realmente da raccontare — dimensione e ricchezza del luogo — non dal numero di notti. Una città grande con 3 notti regge 3.000-3.500 parole; un paese piccolo con 3 notti ne regge 1.800-2.400, e insistere oltre produce riempitivo. Scegli il budget dentro queste bande, secondo il luogo:
+   * località piccole (borghi, paesi, isole minori): 1.500-2.500 parole;
+   * città medio-grandi o luoghi molto ricchi di cose da raccontare: 2.500-3.500 parole.
+   Le notti sono un indizio secondario, non il criterio. Associa la tappa corrispondente del brief tramite `tappa_ordine`.
 4. Le tappe di 1 notte o di puro trasferimento NON hanno un capitolo proprio: vanno accorpate in capitoli di COLLEGAMENTO (tipo `collegamento`, 800-1.200 parole) che fanno da ponte tra due tappe maggiori. Associa la tappa breve tramite `tappa_ordine`.
 5. UN capitolo di CONGEDO (tipo `congedo`, 800-1.200 parole, nessuna ricerca), subito prima degli apparati: chiude l'arco del viaggio di QUESTO cliente — cosa hanno attraversato, cosa resta, il ritorno. Ancorato al loro viaggio specifico (le loro tappe, il loro mezzo, la loro occasione), mai una chiusura generica. Riprende la promessa dell'apertura e la porta a compimento. Nessuna tappa associata.
 6. UN capitolo di apparati finale (tipo `apparati`, 1.500-2.500 parole), come appendice ultima: praticità, glossario essenziale, checklist. Nessuna tappa associata.

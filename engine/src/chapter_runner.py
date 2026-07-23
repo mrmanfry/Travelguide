@@ -400,33 +400,38 @@ def generate_chapter(
     usage_log: list[dict] = []
     testo = ""
 
+    # `valido` = l'ultima versione salvata ha superato TUTTI i controlli
+    # strutturali (titolo, META, banda, box). Se resta False dopo i tentativi, il
+    # capitolo è degenere e il gate a valle non deve nemmeno chiamare il critico.
+    valido = False
     for tentativo in range(1, MAX_GEN_ATTEMPTS + 1):
         user_content = base_user + extra_note
         response, usage_log = run_one_generation(client, system, tools, user_content)
         grezzo = "".join(block.text for block in response.content if block.type == "text")
 
         testo, titolo_ok = clean_chapter(grezzo)
+        note_parti: list[str] = []
+
         if not titolo_ok:
-            # Nessuna riga di titolo: è un errore. Salvo il grezzo e segnalo.
+            # Output degenere senza titolo: NON è più un'uscita immediata dal ciclo,
+            # rientra nei tentativi come ogni altro output non valido.
             testo = grezzo
-            warnings.append(
-                "Nessuna riga di titolo '# ' trovata nell'output: salvato il testo "
-                "grezzo così com'è, senza pulizia del preambolo."
+            note_parti.append(
+                "OUTPUT SENZA TITOLO: il tentativo precedente non iniziava con una riga "
+                "di titolo '# '. Il file è un capitolo di libro: deve iniziare col titolo "
+                "del luogo (riga che inizia con '# '), senza preamboli, commenti o "
+                "resoconti del lavoro svolto."
             )
-            break
-
-        c = controlli_struttura(assignment, testo)
-        parole = c["parole"]
-
-        # Il capitolo è valido solo se rientra nella banda di lunghezza, porta un
-        # blocco META parsabile (senza META il controllo ricerche è inerte e la
-        # libreria asset resta vuota) E rispetta la regola del box GLI IMMOBILI
-        # (obbligatorio nelle tappe, vietato altrove).
-        if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
-            break
-
-        if tentativo < MAX_GEN_ATTEMPTS:
-            note_parti = []
+        else:
+            c = controlli_struttura(assignment, testo)
+            parole = c["parole"]
+            # Valido solo se rientra nella banda, porta un META parsabile (senza
+            # META il controllo ricerche è inerte e la libreria asset resta vuota)
+            # E rispetta la regola del box GLI IMMOBILI (obbligatorio nelle tappe,
+            # vietato altrove).
+            if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
+                valido = True
+                break
             if not c["lunghezza_ok"]:
                 verso = "più lungo" if parole < lo else "più corto"
                 note_parti.append(
@@ -446,30 +451,39 @@ def generate_chapter(
                 )
             if not c["immobili_ok"]:
                 note_parti.append(nota_revisione_immobili(assignment))
+
+        if tentativo < MAX_GEN_ATTEMPTS:
             extra_note = "\n\n" + "\n\n".join(note_parti)
         else:
-            if not c["lunghezza_ok"]:
+            # Ultimo tentativo ancora non valido: registra i warning definitivi.
+            if not titolo_ok:
                 warnings.append(
-                    f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
-                    f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
+                    f"Nessuna riga di titolo '# ' nell'output dopo {MAX_GEN_ATTEMPTS} "
+                    "tentativi: il file non è un capitolo valido."
                 )
-            if not c["meta_ok"]:
-                warnings.append(
-                    f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} tentativi: "
-                    "il capitolo è salvato come grezzo ma non è valido (controllo ricerche "
-                    "inerte, nessun asset estratto)."
-                )
-            if not c["immobili_ok"]:
-                if assignment.tipo == "tappa":
+            else:
+                if not c["lunghezza_ok"]:
                     warnings.append(
-                        f"Box GLI IMMOBILI assente dopo {MAX_GEN_ATTEMPTS} tentativi in un "
-                        "capitolo di tappa: manca l'elemento strutturale obbligatorio."
+                        f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                        f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
                     )
-                else:
+                if not c["meta_ok"]:
                     warnings.append(
-                        f"Box GLI IMMOBILI presente dopo {MAX_GEN_ATTEMPTS} tentativi in un "
-                        f"capitolo di tipo '{assignment.tipo}' (non tappa): è vietato."
+                        f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} "
+                        "tentativi: il capitolo è salvato come grezzo ma non è valido "
+                        "(controllo ricerche inerte, nessun asset estratto)."
                     )
+                if not c["immobili_ok"]:
+                    if assignment.tipo == "tappa":
+                        warnings.append(
+                            f"Box GLI IMMOBILI assente dopo {MAX_GEN_ATTEMPTS} tentativi in "
+                            "un capitolo di tappa: manca l'elemento strutturale obbligatorio."
+                        )
+                    else:
+                        warnings.append(
+                            f"Box GLI IMMOBILI presente dopo {MAX_GEN_ATTEMPTS} tentativi in "
+                            f"un capitolo di tipo '{assignment.tipo}' (non tappa): è vietato."
+                        )
 
     # Segnali sull'ultimo tentativo salvato. NOTA: la presenza di voci in
     # `claims_da_verificare` NON è un difetto — per progetto è la lista che lo
@@ -492,6 +506,7 @@ def generate_chapter(
         "tetto_ricerche": tetto,
         "ricerche_esaurite": ricerche >= tetto,
         "verifica_incompleta": verifica_incompleta,
+        "valido": valido,
     }
 
     cap_path.write_text(testo, encoding="utf-8")
