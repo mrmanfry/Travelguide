@@ -63,6 +63,17 @@ class Brief(BaseModel):
     stile: Stile = Field(default_factory=Stile)
     passioni: list[Passione] = Field(default_factory=list)
     oro: Oro = Field(default_factory=Oro)
+    # Il mezzo di trasporto è un vincolo strutturale (bagaglio, spostamenti,
+    # parcheggi, traghetti, tipo di strada), non un dettaglio.
+    mezzo: Literal[
+        "auto",
+        "moto",
+        "treno",
+        "aereo_e_locale",
+        "camper",
+        "misto",
+    ] = "misto"
+    note_mezzo: Optional[str] = None
 
     @property
     def giorni(self) -> int:
@@ -81,6 +92,7 @@ class ChapterAssignment(BaseModel):
         "contesto",
         "tappa",
         "collegamento",
+        "congedo",
         "apparati",
     ] = "tappa"
     budget_parole: int

@@ -15,6 +15,7 @@ from src import config
 from src.chapter_runner import (
     PROMPTS_DIR,
     build_calendar_block,
+    build_mezzo_block,
     make_client,
     stable_json,
 )
@@ -46,6 +47,8 @@ def _build_outline_system(brief: Brief) -> list[dict]:
                 + stable_json(brief.model_dump(mode="json"))
                 + "\n\n"
                 + build_calendar_block(brief)
+                + "\n\n"
+                + build_mezzo_block(brief)
             ),
             "cache_control": {"type": "ephemeral"},
         },

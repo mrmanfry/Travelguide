@@ -1,0 +1,72 @@
+{
+  "brief": {
+    "brief_id": "fixture-grecia-001",
+    "lingua_guida": "it",
+    "mezzo": "moto",
+    "note_mezzo": "una moto, due persone; partenza e rientro da Roma; tre giornate lunghe di guida: 430 km all'andata, 223 km da Lefkada verso l'entroterra, 430 km al rientro",
+    "tappe": [
+      {
+        "ordine": 1,
+        "luogo": "Locorotondo (Puglia, Italia)",
+        "notti": 3,
+        "hotel": "B&B Luxury Villa Olimpia",
+        "note_logistica": "arrivo da Roma in moto, 430 km; il 10 agosto concerto di Fulminacci"
+      },
+      {
+        "ordine": 2,
+        "luogo": "Cefalonia",
+        "notti": 3,
+        "hotel": "Thalassa Boutique Hotel",
+        "note_logistica": "arrivo via traghetto notturno dell'11 agosto dalla Puglia; il 13 agosto gita in barca da Fiskardo"
+      },
+      {
+        "ordine": 3,
+        "luogo": "Itaca",
+        "notti": 2,
+        "hotel": "Hotel Nostos",
+        "note_logistica": "traghetto da Cefalonia il 15 agosto; il 16 barca a noleggio"
+      },
+      {
+        "ordine": 4,
+        "luogo": "Lefkada",
+        "notti": 2,
+        "hotel": "alloggio Airbnb",
+        "note_logistica": "traghetto il 17 agosto; serata al FLYME Bar"
+      },
+      {
+        "ordine": 5,
+        "luogo": "Zagori (Aristi, Epiro — entroterra montano)",
+        "notti": 2,
+        "hotel": "Aristi Mountain Resort",
+        "note_logistica": "223 km dalla costa verso l'interno"
+      },
+      {
+        "ordine": 6,
+        "luogo": "Parga",
+        "notti": 1,
+        "hotel": "alloggio da confermare",
+        "note_logistica": "ultima tappa prima del traghetto di rientro del 22 agosto da Igoumenitsa"
+      }
+    ],
+    "date": {"inizio": "2026-08-08", "fine": "2026-08-22", "flessibili": false},
+    "viaggiatori": {"adulti": 2, "bambini_eta": [], "occasione": "coppia"},
+    "stile": {"avventura_relax": 5, "ritmo": 4, "budget_fascia": "medio_alto"},
+    "passioni": [
+      {"tema": "avventura in moto", "dettaglio": "strade da guidare, tornanti, passi"},
+      {"tema": "esperienze locali", "dettaglio": "cose vere e non turistiche"},
+      {"tema": "mare e spiagge", "dettaglio": "mare e spiagge da raggiungere"},
+      {"tema": "barca", "dettaglio": "giri in barca e barche a noleggio"}
+    ],
+    "oro": {
+      "da_non_perdere": [
+        "concerto di Fulminacci a Locorotondo il 10 agosto",
+        "gita in barca da Fiskardo",
+        "barca a noleggio a Itaca",
+        "mare"
+      ],
+      "da_evitare": ["posti costruiti per i turisti"],
+      "contesto_emotivo": "giro della Grecia in moto per una coppia di 34 anni che parte da Roma: lui guida, lei viaggia dietro; cercano strade, mare e cose vere, non un tour organizzato",
+      "note_libere": null
+    }
+  }
+}

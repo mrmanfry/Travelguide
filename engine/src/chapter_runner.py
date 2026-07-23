@@ -93,13 +93,29 @@ def build_calendar_block(brief: Brief) -> str:
     return "\n".join(righe)
 
 
+MEZZO_HEADER = "# MEZZO DI TRASPORTO (vincolo strutturale, non un dettaglio)"
+
+
+def build_mezzo_block(brief: Brief) -> str:
+    """Blocco sul mezzo di trasporto, da mettere nel contesto in cache.
+
+    Il mezzo filtra ogni raccomandazione (bagaglio, spostamenti, parcheggi,
+    traghetti, tipo di strada): va nel prefisso cached accanto al calendario, non
+    lasciato implicito nel brief.
+    """
+    righe = [MEZZO_HEADER, f"Mezzo: {brief.mezzo}"]
+    if brief.note_mezzo:
+        righe.append(f"Note: {brief.note_mezzo}")
+    return "\n".join(righe)
+
+
 def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") -> list[dict]:
     """Costruisce il system a due blocchi, entrambi marcati per il caching.
 
     Blocco 1: style_guide.md + separatore + system_file (con {{LINGUA}} risolto).
     Blocco 2: il brief serializzato in JSON deterministico + calendario del
     viaggio precalcolato in Python (i giorni della settimana non vanno mai
-    lasciati calcolare al modello).
+    lasciati calcolare al modello) + il blocco MEZZO (vincolo strutturale).
     """
     style_guide = (PROMPTS_DIR / "style_guide.md").read_text(encoding="utf-8")
     system_prompt = (PROMPTS_DIR / system_file).read_text(encoding="utf-8")
@@ -118,6 +134,8 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
                 + stable_json(brief.model_dump(mode="json"))
                 + "\n\n"
                 + build_calendar_block(brief)
+                + "\n\n"
+                + build_mezzo_block(brief)
             ),
             "cache_control": {"type": "ephemeral"},
         },
