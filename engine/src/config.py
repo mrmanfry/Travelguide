@@ -18,6 +18,10 @@ MAX_TOKENS_CRITIC = 16000
 MAX_TOKENS_FIXER = 20000
 MAX_SEARCHES_PER_CHAPTER = 30
 MAX_SEARCHES_CRITIC = 15
+# La seconda passata di critica ha un mandato ristretto (solo le correzioni del
+# fixer e i punti già segnalati), quindi un budget di ricerche molto più piccolo:
+# non deve riverificare l'intero capitolo.
+MAX_SEARCHES_CRITIC_2 = 6
 
 ASSETS_DB = "output/assets.sqlite"
 

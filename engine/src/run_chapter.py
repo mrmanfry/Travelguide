@@ -21,10 +21,11 @@ from src.chapter_runner import (
     chapter_paths,
     generate_chapter,
     make_client,
+    parse_meta,
     run_verification_call,
 )
 from src.costs import scrivi_costi
-from src.fix_chapter import apply_corrections
+from src.fix_chapter import apply_corrections, format_alerts
 
 
 FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
@@ -54,25 +55,71 @@ def extract_verdict(critica: str) -> dict | None:
     return None
 
 
+def build_second_pass_user(
+    capitolo: str, correzioni_applicate: list[str], alert_primo_giro: list[dict]
+) -> str:
+    """Messaggio user della seconda passata: capitolo corretto + correzioni + alert del 1° giro."""
+    parti = [
+        "CAPITOLO CORRETTO (versione finale, dopo il giro di correzione):",
+        "",
+        capitolo,
+        "",
+        "---",
+        "",
+        "CORREZIONI APPLICATE DAL FIXER (campo 'correzioni_applicate' del META):",
+    ]
+    if correzioni_applicate:
+        parti.extend(f"- {c}" for c in correzioni_applicate)
+    else:
+        parti.append("(nessuna correzione dichiarata nel META)")
+    parti.extend(
+        [
+            "",
+            "---",
+            "",
+            "ALERT DEL PRIMO GIRO DI CRITICA (verifica solo che siano stati risolti):",
+            format_alerts(alert_primo_giro) or "(nessun alert nel primo giro)",
+        ]
+    )
+    return "\n".join(parti)
+
+
 def run_critic(
     brief: Brief,
     assignment: ChapterAssignment,
     capitolo: str,
     suffix: str = "critic",
+    seconda_passata: bool = False,
+    correzioni_applicate: list[str] | None = None,
+    alert_primo_giro: list[dict] | None = None,
 ) -> tuple[Path, dict]:
     """Passata di critica del capitolo, con la stessa struttura system a due blocchi.
 
     `suffix` distingue il file di output: "critic" per la prima passata,
-    "critic2" per la ri-critica dopo la correzione. Ritorna (percorso, risultato):
+    "critic2" per la ri-critica dopo la correzione. Con `seconda_passata=True` il
+    critico gira a mandato ristretto (prompt critic2_system.md, budget di ricerche
+    MAX_SEARCHES_CRITIC_2): verifica solo le correzioni del fixer, i punti già
+    segnalati e la coerenza interna, e riceve nel messaggio user le
+    `correzioni_applicate` e gli `alert_primo_giro`. Ritorna (percorso, risultato):
     il risultato include il verdetto parsato (o None se la risposta non è JSON).
     """
     client = make_client()
-    system = build_system_blocks(brief, system_file="critic_system.md")
+    if seconda_passata:
+        system = build_system_blocks(brief, system_file="critic2_system.md")
+        max_searches = config.MAX_SEARCHES_CRITIC_2
+        user_content = build_second_pass_user(
+            capitolo, correzioni_applicate or [], alert_primo_giro or []
+        )
+    else:
+        system = build_system_blocks(brief, system_file="critic_system.md")
+        max_searches = config.MAX_SEARCHES_CRITIC
+        user_content = capitolo
+
     tools = [
         {
             "type": config.WEB_SEARCH_TOOL_TYPE,
             "name": "web_search",
-            "max_uses": config.MAX_SEARCHES_CRITIC,
+            "max_uses": max_searches,
         }
     ]
 
@@ -80,7 +127,7 @@ def run_critic(
         client,
         system,
         tools,
-        capitolo,
+        user_content,
         model=config.MODEL_CRITIC,
         max_tokens=config.MAX_TOKENS_CRITIC,
     )
@@ -225,7 +272,11 @@ def scrivi_gate(
         sezioni.append(f"Alert bloccanti ancora aperti ({len(bloccanti)}):")
         sezioni.extend(f"  - {_sintesi_alert(a)}" for a in bloccanti)
 
-    non_bloccanti = [a for a in alerts if a.get("gravita") != "bloccante"]
+    # "Non bloccanti" = tutti gli alert che non sono nella lista dei bloccanti
+    # effettivi. Include gli alert declassati (es. i 'non_verificabile' della
+    # seconda passata, che restano aperti ma non bloccano la consegna).
+    bloccanti_ids = {id(a) for a in bloccanti}
+    non_bloccanti = [a for a in alerts if id(a) not in bloccanti_ids]
     if non_bloccanti:
         sezioni.append("")
         sezioni.append(f"Altri alert aperti, non bloccanti ({len(non_bloccanti)}):")
@@ -278,20 +329,21 @@ def main() -> None:
     # Se non è vuoto, il capitolo non è consegnabile.
     verifica_problemi: list[str] = []
 
-    # Genera → critica.
+    # Genera → critica (prima passata, mandato pieno).
     critic_path, risultato = run_critic(
         brief, assignment, cap_path.read_text(encoding="utf-8")
     )
     print(f"Critica: {critic_path}")
     verdetto, bloccanti, alerts = leggi_verdetto(risultato)
+    alert_primo_giro = alerts  # da passare alla seconda passata
     motivo = verifica_fallita(risultato)
     if motivo:
         verifica_problemi.append(f"Critico: {motivo}.")
 
     # → se il critico è affidabile e ci sono bloccanti (o verdetto "da_rifare"),
-    # applica le correzioni una volta sola → ri-critica → ri-valuta. Massimo un
-    # giro, per non entrare in cicli costosi. Se il verdetto è perso non si
-    # corregge: non si sa cosa correggere.
+    # applica le correzioni una volta sola → ri-critica (mandato ristretto) →
+    # ri-valuta. Massimo un giro, per non entrare in cicli costosi. Se il verdetto
+    # è perso non si corregge: non si sa cosa correggere.
     corretto = False
     if not motivo and (bloccanti or verdetto == "da_rifare"):
         print(
@@ -309,24 +361,47 @@ def main() -> None:
                 "Fixer: correzione troncata (max_tokens) anche dopo il ritentativo."
             )
 
+        # Seconda passata a mandato ristretto: verifica solo le correzioni del
+        # fixer (dal META del capitolo corretto) e gli alert del primo giro.
+        capitolo_corretto = cap_path.read_text(encoding="utf-8")
+        meta_corretto = parse_meta(capitolo_corretto) or {}
+        correzioni_applicate = meta_corretto.get("correzioni_applicate") or []
         critic2_path, risultato = run_critic(
             brief,
             assignment,
-            cap_path.read_text(encoding="utf-8"),
+            capitolo_corretto,
             suffix="critic2",
+            seconda_passata=True,
+            correzioni_applicate=correzioni_applicate,
+            alert_primo_giro=alert_primo_giro,
         )
-        print(f"Ri-critica: {critic2_path}")
+        print(f"Ri-critica (mandato ristretto): {critic2_path}")
         verdetto, bloccanti, alerts = leggi_verdetto(risultato)
         motivo2 = verifica_fallita(risultato)
         if motivo2:
             verifica_problemi.append(f"Secondo critico: {motivo2}.")
+
+        # I bloccanti 'non_verificabile' della seconda passata NON bloccano la
+        # consegna: sono lacune di verifica su punti che il primo critico aveva
+        # già in carico, non errori accertati (il primo giro li ha verificati a
+        # mandato pieno). Restano visibili come alert aperti non bloccanti.
+        bloccanti_non_verif = [a for a in bloccanti if a.get("non_verificabile")]
+        if bloccanti_non_verif:
+            bloccanti = [a for a in bloccanti if not a.get("non_verificabile")]
+            print(
+                f"Seconda passata: {len(bloccanti_non_verif)} alert bloccanti "
+                f"'non verificabili' declassati (non bloccano la consegna).",
+                file=sys.stderr,
+            )
 
     # Gate sulle ricerche (condizione corretta): la presenza di claim_da_verificare
     # è normale, NON un difetto. Il capitolo è problematico solo se le ricerche di
     # generazione sono esaurite E il critico segnala claim di tipo 'fatto' rimasti
     # aperti (non è riuscito a verificarli). verifica_incompleta: true è già
     # gestito come warning di generazione.
-    fatti_aperti = [a for a in alerts if a.get("tipo") == "fatto"]
+    fatti_aperti = [
+        a for a in alerts if a.get("tipo") == "fatto" and not a.get("non_verificabile")
+    ]
     if gen_info.get("ricerche_esaurite") and fatti_aperti:
         verifica_problemi.append(
             f"Ricerche di generazione esaurite "

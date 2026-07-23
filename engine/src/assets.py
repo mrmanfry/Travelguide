@@ -62,6 +62,42 @@ def _parse_meta(meta: str) -> list[dict]:
     return []
 
 
+def delete_chapter_assets(brief_id: str, fonte_capitolo: int) -> int:
+    """Cancella tutte le righe asset di un capitolo (per brief_id + numero).
+
+    Serve alla deduplica: quando il fixer riscrive il capitolo, le righe catturate
+    dalla versione v1 vanno rimosse prima di inserire quelle della versione finale,
+    così in libreria resta una sola serie di asset per capitolo.
+    """
+    con = _connect()
+    try:
+        cur = con.execute(
+            "DELETE FROM assets WHERE brief_id = ? AND fonte_capitolo = ?",
+            (brief_id, fonte_capitolo),
+        )
+        con.commit()
+        return cur.rowcount
+    finally:
+        con.close()
+
+
+def cleanup_degenerate_assets() -> int:
+    """Pulizia una-tantum delle righe degeneri: senza tipo né titolo.
+
+    Sono un residuo storico di catture da blocchi META privi di 'assets' (prima
+    della guardia introdotta nel fixer). Restituisce il numero di righe rimosse.
+    """
+    con = _connect()
+    try:
+        cur = con.execute(
+            "DELETE FROM assets WHERE tipo IS NULL AND (titolo IS NULL OR titolo = '')"
+        )
+        con.commit()
+        return cur.rowcount
+    finally:
+        con.close()
+
+
 def capture_assets(brief: Brief, assignment: ChapterAssignment, meta: str) -> int:
     """Salva gli asset del blocco META nel database. Restituisce il numero di righe inserite."""
     now = datetime.now(timezone.utc).isoformat()

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
 from src import config
-from src.assets import capture_assets
+from src.assets import capture_assets, delete_chapter_assets
 from src.chapter_runner import (
     META_RE,
     build_system_blocks,
@@ -137,12 +137,19 @@ def apply_corrections(
     meta = parse_meta(testo)
     assets = meta.get("assets") if isinstance(meta, dict) else None
     if meta_match and isinstance(assets, list) and assets:
+        # Deduplica: la versione corretta è quella finale. Rimuovo prima gli asset
+        # della v1 (catturati dalla generazione), poi inserisco quelli corretti,
+        # così in libreria resta una sola serie per capitolo.
+        delete_chapter_assets(brief.brief_id, numero)
         capture_assets(brief, assignment, meta_match.group(1).strip())
     else:
+        # Senza 'assets' nel META corretto NON tocco il database: gli asset della
+        # v1 restano l'unica serie valida (niente cancellazione che lascerebbe il
+        # capitolo senza asset, niente riga degenere).
         print(
             f"ATTENZIONE: capitolo corretto {numero:02d}: blocco META assente o senza "
-            "chiave 'assets' valorizzata — nessun asset scritto nel database "
-            "(evitata la riga degenere).",
+            "chiave 'assets' valorizzata — asset della v1 mantenuti, nessuna "
+            "cattura né deduplica.",
             file=sys.stderr,
         )
 
