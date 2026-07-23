@@ -10,6 +10,12 @@ MODEL_FIXER = "claude-sonnet-5"
 # ma è una sola chiamata piccola (pochi centesimi).
 MODEL_OUTLINE = "claude-opus-4-8"
 MAX_TOKENS_OUTLINE = 4000
+# Recupero del blocco META quando il capitolo è valido ma il generatore ha
+# omesso solo il META finale: un compito puramente estrattivo (nessuna ricerca,
+# nessuna riscrittura), affidato al modello più economico. ID verificato sui
+# docs Anthropic: Haiku 4.5 = "claude-haiku-4-5".
+MODEL_META_SALVAGE = "claude-haiku-4-5"
+MAX_TOKENS_META_SALVAGE = 2000
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
@@ -54,6 +60,12 @@ PRICING = {
         "output": 15.00,
         "cache_write": 3.75,   # 1.25 * input (TTL 5m)
         "cache_read": 0.30,    # 0.10 * input
+    },
+    "claude-haiku-4-5": {
+        "input": 1.00,
+        "output": 5.00,
+        "cache_write": 1.25,   # 1.25 * input (TTL 5m)
+        "cache_read": 0.10,    # 0.10 * input
     },
 }
 

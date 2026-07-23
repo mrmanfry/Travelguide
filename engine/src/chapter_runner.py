@@ -358,6 +358,84 @@ def run_verification_call(client, system, tools, user_content, model, max_tokens
     return response, usage_log, info
 
 
+def salvage_meta(
+    brief: Brief, assignment: ChapterAssignment, chapter_text: str
+) -> dict | None:
+    """Ricostruisce il blocco META di un capitolo valido a cui manca solo il META.
+
+    Quando la prosa è valida (titolo, banda di lunghezza, box corretti) ma il
+    generatore ha omesso il blocco META finale, non si butta il capitolo: si
+    recupera. Un modello economico (Haiku), SENZA ricerca e SENZA riscrivere il
+    capitolo, legge il testo e restituisce solo il blocco META coi campi
+    ricavabili dalla prosa. Ritorna il META come dict (con `meta_ricostruito:
+    true`), oppure None se non è ricostruibile. Scrive l'usage in
+    cap_NN.meta.usage.json perché il costo del recupero entri nella misura.
+    """
+    client = make_client()
+    istruzioni = (
+        "Ricevi il TESTO di un capitolo di una guida di viaggio a cui manca il "
+        "blocco META finale. Il tuo compito NON è riscrivere il capitolo: è "
+        "produrre soltanto il blocco META che lo chiude, ricavandolo dal testo.\n\n"
+        "Restituisci ESCLUSIVAMENTE un blocco delimitato da `<!--META` e `META-->`, "
+        "senza nulla prima o dopo, contenente JSON valido con i campi:\n"
+        "- `riassunto`: 2-3 frasi che riassumono il capitolo, massimo 150 parole\n"
+        "- `claims_da_verificare`: le affermazioni fattuali specifiche presenti nel "
+        "testo (prezzi, orari, giorni di apertura o chiusura, nomi di locali)\n"
+        "- `assets`: lista di oggetti {tipo, titolo, sezione, deperibilita} ricavati "
+        "dalle sezioni e dai box del capitolo\n"
+        "- `verifica_incompleta`: false\n"
+        "- `fatti_verificati`: [] (lista vuota: il blocco è ricostruito a posteriori "
+        "dal testo, non da una verifica con ricerca)\n\n"
+        "Non inventare dati non presenti nel testo. Nessuna ricerca."
+    )
+    user_content = istruzioni + "\n\n---\n\nTESTO DEL CAPITOLO:\n\n" + chapter_text
+    try:
+        response = client.messages.create(
+            model=config.MODEL_META_SALVAGE,
+            max_tokens=config.MAX_TOKENS_META_SALVAGE,
+            messages=[{"role": "user", "content": user_content}],
+        )
+    except Exception as exc:  # rete/API: il recupero fallisce, si torna a rigenerare
+        print(f"ATTENZIONE: salvataggio META fallito (errore API): {exc}", file=sys.stderr)
+        return None
+
+    grezzo = "".join(b.text for b in response.content if b.type == "text")
+    meta = parse_meta(grezzo)
+    if meta is None:
+        # Il modello potrebbe aver reso il solo JSON, senza i delimitatori.
+        try:
+            obj = json.loads(grezzo.strip())
+            meta = obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            meta = None
+    if not isinstance(meta, dict):
+        return None
+
+    meta["meta_ricostruito"] = True
+    meta["verifica_incompleta"] = False
+    meta.setdefault("fatti_verificati", [])
+
+    # Usage del recupero, per la misura dei costi (schema uguale agli altri artefatti).
+    usage_path = chapter_paths(brief, assignment)[0].with_name(
+        f"cap_{assignment.numero:02d}.meta.usage.json"
+    )
+    usage_path.write_text(
+        json.dumps(
+            {
+                "model": response.model,
+                "stop_reason": response.stop_reason,
+                "truncated": response.stop_reason == "max_tokens",
+                "retried": False,
+                "chiamate": [response.usage.model_dump()],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return meta
+
+
 def generate_chapter(
     brief: Brief, assignment: ChapterAssignment
 ) -> tuple[Path, list[str], dict]:
@@ -432,6 +510,27 @@ def generate_chapter(
             if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
                 valido = True
                 break
+            # Recupero del META: se l'UNICO problema è il blocco META mancante e il
+            # resto è valido (titolo, banda, box), prima si tenta il salvataggio con
+            # un modello economico, e solo se anche quello fallisce si rigenera.
+            if c["lunghezza_ok"] and c["immobili_ok"] and not c["meta_ok"]:
+                meta_rec = salvage_meta(brief, assignment, testo)
+                if meta_rec is not None:
+                    blocco = (
+                        "<!--META\n"
+                        + json.dumps(meta_rec, ensure_ascii=False, indent=2)
+                        + "\nMETA-->"
+                    )
+                    testo = testo.rstrip() + "\n\n" + blocco
+                    c = controlli_struttura(assignment, testo)
+                    if c["meta_ok"] and c["lunghezza_ok"] and c["immobili_ok"]:
+                        valido = True
+                        print(
+                            f"Capitolo {assignment.numero:02d}: META ricostruito via "
+                            f"{config.MODEL_META_SALVAGE} (capitolo valido, footer mancante).",
+                            file=sys.stderr,
+                        )
+                        break
             if not c["lunghezza_ok"]:
                 verso = "più lungo" if parole < lo else "più corto"
                 note_parti.append(
