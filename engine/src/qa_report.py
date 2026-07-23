@@ -229,7 +229,9 @@ def costruisci_report(brief_id: str) -> str:
     R.append(f"{'cap':>3} {'tipo':<13} {'parole':>7} {'budget':>7} {'scarto':>8}")
     for n in numeri:
         v = cap[n]["voce"]
-        parole = len(cap[n]["tokens"])
+        # Stesso conteggio del motore: parole = token separati da spazi del corpo
+        # senza META (chapter_word_count usa str.split()).
+        parole = len(cap[n]["corpo"].split())
         budget = v.get("budget_parole") or 0
         scarto = (100.0 * (parole - budget) / budget) if budget else 0.0
         R.append(f"{n:>3} {v.get('tipo',''):<13} {parole:>7} {budget:>7} {scarto:>+7.1f}%")
