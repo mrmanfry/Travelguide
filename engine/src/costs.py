@@ -132,7 +132,7 @@ def _leggi_json(path: Path) -> dict | None:
 def costruisci_costi(brief: Brief, assignment: ChapterAssignment) -> dict:
     """Compone la struttura dei costi leggendo gli artefatti di usage del capitolo."""
     numero = assignment.numero
-    out_dir = ENGINE_ROOT / "output" / brief.brief_id
+    out_dir = config.output_root() / brief.brief_id
     stem = f"cap_{numero:02d}"
 
     # (ruolo, nome file) nell'ordine della pipeline.
@@ -161,7 +161,7 @@ def costruisci_costi(brief: Brief, assignment: ChapterAssignment) -> dict:
 def scrivi_costi(brief: Brief, assignment: ChapterAssignment) -> tuple[Path, dict]:
     """Scrive output/{brief_id}/costi.json con l'aggregato dei costi. Ritorna (path, dati)."""
     dati = costruisci_costi(brief, assignment)
-    out_dir = ENGINE_ROOT / "output" / brief.brief_id
+    out_dir = config.output_root() / brief.brief_id
     out_dir.mkdir(parents=True, exist_ok=True)
     costi_path = out_dir / "costi.json"
     costi_path.write_text(

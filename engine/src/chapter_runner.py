@@ -143,7 +143,7 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
 
 
 def chapter_paths(brief: Brief, assignment: ChapterAssignment) -> tuple[Path, Path]:
-    out_dir = ENGINE_ROOT / "output" / brief.brief_id
+    out_dir = config.output_root() / brief.brief_id
     stem = f"cap_{assignment.numero:02d}"
     return out_dir / f"{stem}.md", out_dir / f"{stem}.usage.json"
 

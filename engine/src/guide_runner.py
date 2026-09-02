@@ -30,7 +30,7 @@ TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 
 def _guide_dir(brief: Brief) -> Path:
-    return ENGINE_ROOT / "output" / brief.brief_id
+    return config.output_root() / brief.brief_id
 
 
 # ---------------------------------------------------------------- stato / ripresa
@@ -250,8 +250,15 @@ def scrivi_da_rivedere(
 # --------------------------------------------------------------- orchestrazione
 
 
-def orchestrazione(brief: Brief) -> int:
-    """Esegue la guida intera. Ritorna il codice di uscita (0 ok, 1 interrotta)."""
+def orchestrazione(brief: Brief, on_progress=None) -> int:
+    """Esegue la guida intera. Ritorna il codice di uscita (0 ok, 1 interrotta).
+
+    `on_progress`, se fornito, è una callable invocata con lo stato corrente
+    (dict) dopo ogni scrittura di stato durante il ciclo dei capitoli. Serve agli
+    host esterni (es. una funzione Modal) per persistere/pubblicare l'avanzamento
+    a ogni capitolo — senza che il motore conosca l'host. Le sue eccezioni sono
+    ignorate: un problema di pubblicazione non deve far cadere la generazione.
+    """
     assignments, generato, costo_outline = carica_o_genera_outline(brief)
     print(
         f"Outline: {len(assignments)} capitoli "
@@ -259,9 +266,18 @@ def orchestrazione(brief: Brief) -> int:
     )
 
     stato = carica_stato(brief, assignments)
+
+    def _persist() -> None:
+        salva_stato(brief, stato)
+        if on_progress is not None:
+            try:
+                on_progress(stato)
+            except Exception:
+                pass
+
     if generato:
         stato["costo_outline"] = costo_outline or 0.0
-        salva_stato(brief, stato)
+        _persist()
 
     capitoli = stato["capitoli"]
     riassunti: list[str] = []
@@ -295,7 +311,7 @@ def orchestrazione(brief: Brief) -> int:
         # riassunti dei precedenti (mai i capitoli interi).
         a.riassunti_precedenti = list(riassunti)
         e["stato"] = "in_corso"
-        salva_stato(brief, stato)
+        _persist()
         print(f"\n=== Capitolo {a.numero}: {a.titolo_provvisorio} ({a.tipo}) ===")
 
         res = esegui_capitolo(brief, a)
@@ -319,7 +335,7 @@ def orchestrazione(brief: Brief) -> int:
         # dopo il fixer): interrompi, non generare i successivi.
         if not res["consegnabile"]:
             e["stato"] = "fallito"
-            salva_stato(brief, stato)
+            _persist()
             prefisso = (
                 "CHECKPOINT capitolo 1 non superato — "
                 if a.numero == 1
@@ -338,7 +354,7 @@ def orchestrazione(brief: Brief) -> int:
         problema_riassunto = valida_riassunto(res["riassunto"])
         if problema_riassunto:
             e["stato"] = "fallito"
-            salva_stato(brief, stato)
+            _persist()
             scrivi_arresto(
                 brief,
                 f"Riassunto del capitolo {a.numero} non valido — guida interrotta",
@@ -359,7 +375,7 @@ def orchestrazione(brief: Brief) -> int:
         else:
             e["stato"] = "approvato"
             e["problemi_revisione"] = []
-        salva_stato(brief, stato)
+        _persist()
         riassunti.append(res["riassunto"])
         etichetta = "approvato" if e["stato"] == "approvato" else "consegnato (DA RIVEDERE)"
         print(

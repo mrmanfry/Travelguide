@@ -12,6 +12,7 @@ from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
 from src import config
+from src import config
 from src.chapter_runner import (
     PROMPTS_DIR,
     build_calendar_block,
@@ -27,7 +28,7 @@ _ARRAY_RE = re.compile(r"```(?:json)?\s*(\[.*?\])\s*```", re.DOTALL)
 
 
 def outline_path(brief: Brief) -> Path:
-    return ENGINE_ROOT / "output" / brief.brief_id / "outline.json"
+    return config.output_root() / brief.brief_id / "outline.json"
 
 
 def _build_outline_system(brief: Brief) -> list[dict]:

@@ -1,5 +1,28 @@
 """Costanti di configurazione del motore di generazione."""
 
+import os
+from pathlib import Path
+
+# Radice engine/ (config.py sta in engine/src/).
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def output_root() -> Path:
+    """Radice degli artefatti generati (stato, capitoli, guida, costi, asset).
+
+    Default: engine/output (invariato per gli usi da CLI in locale). Su un host
+    come Modal si punta a una Volume durevole impostando la variabile d'ambiente
+    GUIDE_OUTPUT_ROOT (es. /data/output), senza toccare il codice.
+    """
+    env = os.environ.get("GUIDE_OUTPUT_ROOT")
+    return Path(env) if env else ENGINE_ROOT / "output"
+
+
+def assets_db_path() -> Path:
+    """Percorso del DB SQLite degli asset, sotto la radice di output."""
+    return output_root() / "assets.sqlite"
+
+
 # Mix di modelli per ruolo. La scrittura del capitolo resta su Opus, la parte
 # più costosa per intelligenza richiesta; critico e fixer vanno su Sonnet 5,
 # che riverifica fatti e giudica a un costo per token nettamente inferiore.
@@ -48,7 +71,6 @@ MAX_SEARCHES_CRITIC = 15
 # non deve riverificare l'intero capitolo.
 MAX_SEARCHES_CRITIC_2 = 6
 
-ASSETS_DB = "output/assets.sqlite"
 
 # Tetto di spesa dell'intera guida in USD: controllato cumulativamente durante
 # l'orchestrazione. Superato il tetto, la guida si ferma.
