@@ -40,9 +40,10 @@ engine_image = (
 # Volume per gli artefatti (stato.json, capitoli, guida.md, da_rivedere.md, costi).
 output_volume = modal.Volume.from_name("travelguide-output", create_if_missing=True)
 
-# Secret con GUIDE_ENGINE_KEY (la chiave Anthropic usata dal motore). Va creato
-# una volta con `modal secret create anthropic-guide GUIDE_ENGINE_KEY=...`.
-anthropic_secret = modal.Secret.from_name("anthropic-guide")
+# Secret con la chiave Anthropic usata dal motore. Il secret di tipo "Anthropic"
+# di Modal espone la chiave come ANTHROPIC_API_KEY; il motore legge invece
+# GUIDE_ENGINE_KEY. Il ponte in genera_guida accetta l'uno o l'altro nome.
+anthropic_secret = modal.Secret.from_name("anthropic-secret")
 
 
 def _prepara_ambiente() -> None:
@@ -75,6 +76,15 @@ def genera_guida(brief_dict: dict, job_id: str) -> int:
     dell'endpoint vede l'avanzamento e poi gli artefatti finali.
     """
     _prepara_ambiente()
+
+    # Ponte sulla chiave: il motore legge GUIDE_ENGINE_KEY, il secret Anthropic
+    # di Modal fornisce ANTHROPIC_API_KEY. Accetta l'uno o l'altro.
+    import os
+
+    chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if chiave:
+        os.environ["GUIDE_ENGINE_KEY"] = chiave
+
     from schema.brief import Brief
     from src.guide_runner import orchestrazione
 
