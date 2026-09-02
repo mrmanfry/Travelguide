@@ -105,10 +105,10 @@ def genera_guida(brief_dict: dict, job_id: str, tetto_usd: float | None = None) 
     return rc
 
 
-@app.function(image=engine_image, volumes={"/data": output_volume})
+@app.function(image=engine_image, volumes={"/data": output_volume}, secrets=[anthropic_secret])
 @modal.asgi_app()
 def web():
-    """App FastAPI: avvio job, stato/avanzamento, download artefatti."""
+    """App FastAPI: intervista di intake, avvio job, stato/avanzamento, artefatti."""
     import json
     import os
     import uuid
@@ -116,6 +116,14 @@ def web():
     from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import PlainTextResponse
+
+    # Prepara l'ambiente per importare il motore (l'intervista chiama Claude) e
+    # fai il ponte sulla chiave: make_client legge GUIDE_ENGINE_KEY, il secret
+    # fornisce ANTHROPIC_API_KEY.
+    _prepara_ambiente()
+    _chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if _chiave:
+        os.environ["GUIDE_ENGINE_KEY"] = _chiave
 
     api = FastAPI(title="TravelGuide Engine")
     # Prototipo: il frontend (Lovable) sta su un altro dominio → CORS aperto.
@@ -139,6 +147,25 @@ def web():
     @api.get("/health")
     def health():
         return {"ok": True}
+
+    @api.post("/intervista")
+    def intervista(payload: dict):
+        """Un turno di intervista di intake sul brief del form.
+
+        body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}]}
+        Ritorna {"azione": "domanda"|"fine", "messaggio": "...", "brief": {...}|null}.
+        A ogni turno il frontend accoda la domanda dell'AI e la risposta
+        dell'utente in `messaggi` e richiama; a "fine" usa il brief arricchito.
+        """
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Payload non valido.")
+        brief = payload.get("brief") or {}
+        messaggi = payload.get("messaggi") or []
+        if not isinstance(brief, dict) or not brief:
+            raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
+        from src.intervista import passo_intervista
+
+        return passo_intervista(brief, messaggi)
 
     @api.post("/generate")
     def generate(brief: dict):

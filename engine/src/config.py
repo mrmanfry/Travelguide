@@ -33,6 +33,11 @@ MODEL_FIXER = "claude-sonnet-5"
 # ma è una sola chiamata piccola (pochi centesimi).
 MODEL_OUTLINE = "claude-opus-4-8"
 MAX_TOKENS_OUTLINE = 4000
+# Intervista di intake: una conversazione breve che, partendo dal brief del
+# form, chiede il poco che manca per tarare la guida. Nessuna ricerca, poche
+# domande: Sonnet 5 dà domande sensate a costo contenuto.
+MODEL_INTERVISTA = "claude-sonnet-5"
+MAX_TOKENS_INTERVISTA = 4000
 # Recupero del blocco META quando il capitolo è valido ma il generatore ha
 # omesso solo il META finale: un compito puramente estrattivo (nessuna ricerca,
 # nessuna riscrittura), affidato al modello più economico. ID verificato sui
