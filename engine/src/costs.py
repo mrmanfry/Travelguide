@@ -14,6 +14,26 @@ from src import config
 from src.chapter_runner import ENGINE_ROOT
 
 
+def _prezzo_modello(model: str) -> dict | None:
+    """Listino per un id modello, tollerante al suffisso di data.
+
+    L'API echeggia in `response.model` l'id concreto dello snapshot, che può
+    portare un suffisso di data (es. 'claude-haiku-4-5-20251001'), mentre la
+    tabella PRICING è indicizzata sugli id senza data ('claude-haiku-4-5'). Si
+    prova prima la corrispondenza esatta; poi la chiave di PRICING che è prefisso
+    dell'id — la più lunga, per evitare match spuri se un giorno convivessero
+    'claude-x' e 'claude-x-y'. Senza il suffisso, un capitolo che passa dal META
+    salvage risultava a costo None e azzerava l'intero costo del capitolo.
+    """
+    prezzo = config.PRICING.get(model)
+    if prezzo is not None:
+        return prezzo
+    candidati = [k for k in config.PRICING if model.startswith(k)]
+    if not candidati:
+        return None
+    return config.PRICING[max(candidati, key=len)]
+
+
 def costo_chiamata(model: str, usage: dict) -> dict:
     """Costo di una singola risposta API a partire dal suo usage.
 
@@ -33,7 +53,7 @@ def costo_chiamata(model: str, usage: dict) -> dict:
         "cache_read_tokens": usage.get("cache_read_input_tokens", 0) or 0,
         "web_search_requests": server.get("web_search_requests", 0) or 0,
     }
-    prezzo = config.PRICING.get(model)
+    prezzo = _prezzo_modello(model)
     if prezzo is None:
         voce["costo_usd"] = None
         voce["nota"] = f"Prezzo non disponibile per il modello '{model}'."
