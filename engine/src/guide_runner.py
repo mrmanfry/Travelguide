@@ -384,13 +384,13 @@ def orchestrazione(brief: Brief, on_progress=None) -> int:
         )
 
         # FAIL-FAST 4: tetto di spesa cumulativo superato → ferma.
-        if costo_cumulato > config.MAX_COSTO_GUIDA_USD:
+        if costo_cumulato > config.max_costo_guida_usd():
             prossimo = a.numero + 1
             scrivi_arresto(
                 brief,
                 "Tetto di spesa superato — guida interrotta",
                 f"Spesa cumulativa ${costo_cumulato:.2f} oltre il tetto "
-                f"MAX_COSTO_GUIDA_USD=${config.MAX_COSTO_GUIDA_USD:.2f}.",
+                f"MAX_COSTO_GUIDA_USD=${config.max_costo_guida_usd():.2f}.",
                 costo_cumulato,
                 prossimo,
             )

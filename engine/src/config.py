@@ -76,6 +76,23 @@ MAX_SEARCHES_CRITIC_2 = 6
 # l'orchestrazione. Superato il tetto, la guida si ferma.
 MAX_COSTO_GUIDA_USD = 40.0
 
+
+def max_costo_guida_usd() -> float:
+    """Tetto di spesa effettivo, con override da GUIDE_MAX_COSTO_USD.
+
+    Default: MAX_COSTO_GUIDA_USD. La variabile d'ambiente permette un budget
+    per-run senza modificare il codice (es. un tetto basso per un test di
+    collegamento che genera solo l'outline e il primo capitolo). Letta a ogni
+    controllo, così un container caldo rispetta comunque il valore del run.
+    """
+    val = os.environ.get("GUIDE_MAX_COSTO_USD")
+    if val:
+        try:
+            return float(val)
+        except ValueError:
+            pass
+    return MAX_COSTO_GUIDA_USD
+
 # Tabella prezzi in USD per 1 milione di token, per modello (listino pubblico
 # Anthropic). `cache_write` è il costo di scrittura in cache con TTL 5 minuti
 # (1.25x l'input), `cache_read` è la lettura da cache (0.10x l'input). Serve a

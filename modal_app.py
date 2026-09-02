@@ -67,13 +67,15 @@ def _prepara_ambiente() -> None:
     cpu=1.0,
     memory=2048,
 )
-def genera_guida(brief_dict: dict, job_id: str) -> int:
+def genera_guida(brief_dict: dict, job_id: str, tetto_usd: float | None = None) -> int:
     """Esegue la guida intera per un brief. Ritorna il codice d'uscita del motore.
 
     `brief_id` viene forzato a `job_id`: gli artefatti del job vivono in
     OUTPUT_ROOT/{job_id}, isolati e ritrovabili dallo stato. La Volume viene
     committata a ogni capitolo (via on_progress) e alla fine, così il polling
-    dell'endpoint vede l'avanzamento e poi gli artefatti finali.
+    dell'endpoint vede l'avanzamento e poi gli artefatti finali. `tetto_usd`, se
+    fornito, impone un budget di spesa al run (utile per un test di collegamento
+    a basso costo: la guida si ferma dopo l'outline e il primo capitolo).
     """
     _prepara_ambiente()
 
@@ -84,6 +86,8 @@ def genera_guida(brief_dict: dict, job_id: str) -> int:
     chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
     if chiave:
         os.environ["GUIDE_ENGINE_KEY"] = chiave
+    if tetto_usd is not None:
+        os.environ["GUIDE_MAX_COSTO_USD"] = str(tetto_usd)
 
     from schema.brief import Brief
     from src.guide_runner import orchestrazione
@@ -138,11 +142,18 @@ def web():
 
     @api.post("/generate")
     def generate(brief: dict):
-        """Avvia una generazione. Ritorna il job_id per il polling."""
+        """Avvia una generazione. Ritorna il job_id per il polling.
+
+        Campo opzionale `_tetto_usd` nel body: budget di spesa del run (per un
+        test di collegamento a basso costo). Viene estratto e non fa parte del
+        brief passato al motore.
+        """
         if not isinstance(brief, dict) or not brief:
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
+        brief = dict(brief)
+        tetto_usd = brief.pop("_tetto_usd", None)
         job_id = uuid.uuid4().hex[:12]
-        genera_guida.spawn(brief, job_id)
+        genera_guida.spawn(brief, job_id, tetto_usd)
         return {"job_id": job_id}
 
     @api.get("/jobs/{job_id}")
