@@ -97,6 +97,7 @@ def passo_intervista(brief_dict: dict, messaggi: list[dict]) -> dict:
         return {
             "azione": "fine",
             "messaggio": "Ho quanto mi serve: procediamo con la tua guida.",
+            "opzioni": [],
             "brief": brief_dict,
         }
 
@@ -107,6 +108,12 @@ def passo_intervista(brief_dict: dict, messaggi: list[dict]) -> dict:
         # Se il modello non ha rimandato un brief valido, tieni quello del form.
         if not isinstance(brief, dict) or not brief:
             brief = brief_dict
-        return {"azione": "fine", "messaggio": messaggio, "brief": brief}
+        return {"azione": "fine", "messaggio": messaggio, "opzioni": [], "brief": brief}
 
-    return {"azione": "domanda", "messaggio": messaggio, "brief": None}
+    # Opzioni tappabili: stringhe brevi, ripulite; lista vuota se assenti.
+    opzioni = obj.get("opzioni")
+    if isinstance(opzioni, list):
+        opzioni = [str(o).strip() for o in opzioni if str(o).strip()][:5]
+    else:
+        opzioni = []
+    return {"azione": "domanda", "messaggio": messaggio, "opzioni": opzioni, "brief": None}

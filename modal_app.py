@@ -153,9 +153,12 @@ def web():
         """Un turno di intervista di intake sul brief del form.
 
         body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}]}
-        Ritorna {"azione": "domanda"|"fine", "messaggio": "...", "brief": {...}|null}.
-        A ogni turno il frontend accoda la domanda dell'AI e la risposta
-        dell'utente in `messaggi` e richiama; a "fine" usa il brief arricchito.
+        Ritorna {"azione": "domanda"|"fine", "messaggio": "...",
+        "opzioni": ["..."], "brief": {...}|null}. `opzioni` sono risposte brevi
+        tappabili (chip) che accompagnano una domanda; [] quando non servono o
+        alla chiusura. A ogni turno il frontend accoda la domanda dell'AI e la
+        risposta dell'utente in `messaggi` e richiama; a "fine" usa il brief
+        arricchito.
         """
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Payload non valido.")
