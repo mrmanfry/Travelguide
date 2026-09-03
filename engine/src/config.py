@@ -71,7 +71,7 @@ FIXER_ENABLED = False
 # convince, perché parla dei loro luoghi, ma costa di più per utente gratuito.
 # False: ci si ferma al primo capitolo (la sola introduzione), molto più
 # economico ma meno convincente.
-ANTEPRIMA_FINO_A_TAPPA = True
+ANTEPRIMA_FINO_A_TAPPA = False
 MAX_SEARCHES_PER_CHAPTER = 30
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
 # apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:
