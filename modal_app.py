@@ -96,11 +96,33 @@ def genera_guida(brief_dict: dict, job_id: str, tetto_usd: float | None = None) 
     brief_dict["brief_id"] = job_id
     brief = Brief.model_validate(brief_dict)
 
+    import json
+    from datetime import datetime, timezone
+
+    dir_job = os.path.join(OUTPUT_ROOT, job_id)
+
+    def _battito() -> None:
+        """Segno di vita del job: se si ferma, l'endpoint se ne accorge."""
+        os.makedirs(dir_job, exist_ok=True)
+        with open(os.path.join(dir_job, "battito.json"), "w", encoding="utf-8") as f:
+            json.dump({"ts": datetime.now(timezone.utc).isoformat()}, f)
+
     def _pubblica(_stato: dict) -> None:
         # Rende visibile stato.json (e i file già scritti) all'endpoint web.
+        _battito()
         output_volume.commit()
 
-    rc = orchestrazione(brief, on_progress=_pubblica)
+    _battito()
+    output_volume.commit()
+    try:
+        rc = orchestrazione(brief, on_progress=_pubblica)
+    except Exception as exc:
+        # Un crash (credito esaurito, errore API, ecc.) non deve lasciare la UI
+        # a girare a vuoto: lascia una traccia leggibile dall'endpoint.
+        with open(os.path.join(dir_job, "ERRORE.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{type(exc).__name__}: {exc}\n")
+        output_volume.commit()
+        raise
     output_volume.commit()
     return rc
 
@@ -112,6 +134,7 @@ def web():
     import json
     import os
     import uuid
+    from datetime import datetime, timezone
 
     from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -233,10 +256,31 @@ def web():
             with open(arresto_path, encoding="utf-8") as f:
                 arresto = f.read()
 
+        # Rilevamento dei guasti: un crash lascia ERRORE.txt; un kill duro non
+        # lascia nulla, ma il battito smette di aggiornarsi. In entrambi i casi
+        # la fase diventa 'interrotta' con un messaggio comprensibile, così la
+        # UI non resta a girare a vuoto per ore.
+        errore = os.path.exists(os.path.join(d, "ERRORE.txt"))
+        stallo = False
+        if not completa and arresto is None and not errore:
+            battito = _leggi_json(os.path.join(d, "battito.json"))
+            try:
+                ultimo = datetime.fromisoformat((battito or {}).get("ts"))
+                stallo = (datetime.now(timezone.utc) - ultimo).total_seconds() > 25 * 60
+            except (TypeError, ValueError):
+                stallo = False
+
         if completa:
             fase = "completa"
         elif arresto is not None:
             fase = "interrotta"
+        elif errore or stallo:
+            fase = "interrotta"
+            arresto = (
+                "La scrittura si è fermata per un problema tecnico, non per "
+                "qualcosa che avete fatto voi. I capitoli già pronti restano "
+                "disponibili: potete riprovare più tardi."
+            )
         else:
             fase = "in_corso"
 
