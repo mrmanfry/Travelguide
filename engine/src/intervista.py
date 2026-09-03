@@ -75,13 +75,28 @@ def _costruisci_messaggi(brief_dict: dict, messaggi: list[dict]) -> list[dict]:
     return out
 
 
-def passo_intervista(brief_dict: dict, messaggi: list[dict]) -> dict:
-    """Un turno di intervista. Ritorna {azione, messaggio, brief}.
+MIN_RISPOSTE = 2  # non chiudere prima di almeno due risposte dell'utente
 
-    Non solleva sull'output malformato: in quel caso chiude in modo sicuro
-    (azione='fine') restituendo il brief così com'era, così il flusso non si
-    blocca e si può comunque generare.
-    """
+# Ripieghi IN VOCE (mai frasi di sistema), usati solo se il modello sbaglia il
+# formato due volte di fila: una domanda morbida se siamo ancora presto, un
+# piccolo ritratto-chiusura se abbiamo già abbastanza.
+_RIPIEGO_DOMANDA = {
+    "azione": "domanda",
+    "messaggio": (
+        "Prima di mettermi a scrivere, ditemi una cosa: quando un viaggio vi resta "
+        "dentro, di solito è per un posto, per una persona incontrata o per un momento "
+        "in cui vi siete sentiti liberi?"
+    ),
+    "opzioni": ["Un posto", "Un incontro", "Un momento di libertà", "Un po' tutto"],
+    "brief": None,
+}
+
+
+def _conta_risposte(messaggi: list[dict]) -> int:
+    return sum(1 for m in (messaggi or []) if isinstance(m, dict) and m.get("ruolo") == "user")
+
+
+def _chiama_modello(brief_dict: dict, messaggi: list[dict]) -> dict | None:
     client = make_client()
     response = client.messages.create(
         model=config.MODEL_INTERVISTA,
@@ -91,29 +106,54 @@ def passo_intervista(brief_dict: dict, messaggi: list[dict]) -> dict:
     )
     raw = "".join(b.text for b in response.content if b.type == "text")
     obj = _estrai_json(raw)
+    if isinstance(obj, dict) and obj.get("azione") in ("domanda", "fine"):
+        return obj
+    return None
 
-    if not isinstance(obj, dict) or obj.get("azione") not in ("domanda", "fine"):
-        # Output non conforme: chiudi senza perdere il brief del form.
-        return {
-            "azione": "fine",
-            "messaggio": "Ho quanto mi serve: procediamo con la tua guida.",
-            "opzioni": [],
-            "brief": brief_dict,
-        }
 
-    azione = obj["azione"]
+def _normalizza(obj: dict, brief_dict: dict) -> dict:
+    """Ripulisce l'oggetto del modello nel contratto {azione, messaggio, opzioni, brief}."""
     messaggio = (obj.get("messaggio") or "").strip()
-    if azione == "fine":
+    if obj["azione"] == "fine":
         brief = obj.get("brief")
-        # Se il modello non ha rimandato un brief valido, tieni quello del form.
         if not isinstance(brief, dict) or not brief:
             brief = brief_dict
         return {"azione": "fine", "messaggio": messaggio, "opzioni": [], "brief": brief}
-
-    # Opzioni tappabili: stringhe brevi, ripulite; lista vuota se assenti.
     opzioni = obj.get("opzioni")
     if isinstance(opzioni, list):
         opzioni = [str(o).strip() for o in opzioni if str(o).strip()][:5]
     else:
         opzioni = []
     return {"azione": "domanda", "messaggio": messaggio, "opzioni": opzioni, "brief": None}
+
+
+def passo_intervista(brief_dict: dict, messaggi: list[dict]) -> dict:
+    """Un turno di intervista. Ritorna {azione, messaggio, opzioni, brief}.
+
+    Robustezza: se il modello sbaglia il formato, ritenta una volta. Se sbaglia
+    ancora, ripiega IN VOCE — una domanda morbida se l'intervista è appena
+    iniziata, altrimenti una chiusura garbata — senza mai esporre frasi di
+    sistema e senza perdere il brief. Non chiude prima di MIN_RISPOSTE risposte:
+    se il modello prova a chiudere troppo presto, lo si riporta a una domanda.
+    """
+    obj = _chiama_modello(brief_dict, messaggi) or _chiama_modello(brief_dict, messaggi)
+    n = _conta_risposte(messaggi)
+
+    if obj is None:
+        # Due tentativi falliti: ripiego in voce, calibrato su quanto siamo avanti.
+        if n < MIN_RISPOSTE:
+            return dict(_RIPIEGO_DOMANDA)
+        return {
+            "azione": "fine",
+            "messaggio": (
+                "Ho abbastanza per iniziare: comincio a scrivervi qualcosa che vi somigli."
+            ),
+            "opzioni": [],
+            "brief": brief_dict,
+        }
+
+    # Il modello vuole chiudere troppo presto: riportalo a una domanda in voce.
+    if obj["azione"] == "fine" and n < MIN_RISPOSTE:
+        return dict(_RIPIEGO_DOMANDA)
+
+    return _normalizza(obj, brief_dict)
