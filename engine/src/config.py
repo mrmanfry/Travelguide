@@ -65,6 +65,13 @@ MAX_TOKENS_FIXER = 8000
 # è dove si concentravano costi e fallimenti del motore. Si riaccende (True)
 # quando si spedisce a clienti paganti.
 FIXER_ENABLED = False
+
+# Ampiezza dell'assaggio gratuito. True: si scrive fino al PRIMO capitolo di
+# tappa incluso (introduzione, contesto e la prima tappa vera) — l'assaggio che
+# convince, perché parla dei loro luoghi, ma costa di più per utente gratuito.
+# False: ci si ferma al primo capitolo (la sola introduzione), molto più
+# economico ma meno convincente.
+ANTEPRIMA_FINO_A_TAPPA = True
 MAX_SEARCHES_PER_CHAPTER = 30
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
 # apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:

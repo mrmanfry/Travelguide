@@ -29,6 +29,23 @@ app = modal.App("travelguide")
 # Radice degli artefatti sulla Volume durevole (sopravvive a riavvii e redeploy).
 OUTPUT_ROOT = "/data/output"
 
+
+def prezzo_eur(capitoli: int) -> int:
+    """Prezzo del libro in base alla sua dimensione (numero di capitoli).
+
+    Il costo di produzione cresce col numero di capitoli, quindi il prezzo lo
+    segue: un weekend non paga come un viaggio di tre settimane. Il numero
+    esatto lo conosciamo dopo l'outline, quindi al paywall si mostra il prezzo
+    di QUESTO libro, non un listino astratto.
+    """
+    if capitoli <= 7:
+        return 19
+    if capitoli <= 12:
+        return 29
+    if capitoli <= 18:
+        return 39
+    return 49
+
 # Immagine: dipendenze del motore + FastAPI, e la cartella engine/ montata a
 # /root/engine (prompt, schema e src inclusi).
 engine_image = (
@@ -67,7 +84,12 @@ def _prepara_ambiente() -> None:
     cpu=1.0,
     memory=2048,
 )
-def genera_guida(brief_dict: dict, job_id: str, tetto_usd: float | None = None) -> int:
+def genera_guida(
+    brief_dict: dict,
+    job_id: str,
+    tetto_usd: float | None = None,
+    anteprima: bool = False,
+) -> int:
     """Esegue la guida intera per un brief. Ritorna il codice d'uscita del motore.
 
     `brief_id` viene forzato a `job_id`: gli artefatti del job vivono in
@@ -115,7 +137,7 @@ def genera_guida(brief_dict: dict, job_id: str, tetto_usd: float | None = None) 
     _battito()
     output_volume.commit()
     try:
-        rc = orchestrazione(brief, on_progress=_pubblica)
+        rc = orchestrazione(brief, on_progress=_pubblica, anteprima=anteprima)
     except Exception as exc:
         # Un crash (credito esaurito, errore API, ecc.) non deve lasciare la UI
         # a girare a vuoto: lascia una traccia leggibile dall'endpoint.
@@ -220,8 +242,9 @@ def web():
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
         brief = dict(brief)
         tetto_usd = brief.pop("_tetto_usd", None)
+        anteprima = bool(brief.pop("_anteprima", False))
         job_id = uuid.uuid4().hex[:12]
-        genera_guida.spawn(brief, job_id, tetto_usd)
+        genera_guida.spawn(brief, job_id, tetto_usd, anteprima)
         return {"job_id": job_id}
 
     @api.get("/jobs/{job_id}")
@@ -278,8 +301,13 @@ def web():
             if ultimo is not None:
                 stallo = (datetime.now(timezone.utc) - ultimo).total_seconds() > 25 * 60
 
+        anteprima_pronta = os.path.exists(os.path.join(d, "anteprima.md"))
+
         if completa:
             fase = "completa"
+        elif anteprima_pronta and arresto is None and not errore:
+            # Fermata voluta: l'assaggio è leggibile, il resto si sblocca pagando.
+            fase = "anteprima"
         elif arresto is not None:
             fase = "interrotta"
         elif errore or stallo:
@@ -300,7 +328,12 @@ def web():
                 "consegnati": consegnati,
                 "totale": len(capitoli),
                 "da_rivedere": sum(1 for c in capitoli if c["stato"] == "da_rivedere"),
-                "costo_usd": round(costo, 4),
+            },
+            # Dimensione del libro finito e prezzo per sbloccarlo: noti già
+            # dall'outline, quindi disponibili fin dall'assaggio (per il paywall).
+            "libro": {
+                "capitoli": len(capitoli),
+                "prezzo_eur": prezzo_eur(len(capitoli)),
             },
         }
         if completa:
@@ -308,6 +341,8 @@ def web():
                 "guida": f"/jobs/{job_id}/guida.md",
                 "da_rivedere": f"/jobs/{job_id}/da_rivedere.md",
             }
+        elif anteprima_pronta:
+            risposta["download"] = {"anteprima": f"/jobs/{job_id}/anteprima.md"}
         if arresto is not None:
             risposta["arresto"] = arresto
         return risposta
@@ -319,6 +354,10 @@ def web():
             raise HTTPException(status_code=404, detail=f"{nome} non ancora disponibile.")
         with open(path, encoding="utf-8") as f:
             return PlainTextResponse(f.read(), media_type="text/markdown; charset=utf-8")
+
+    @api.get("/jobs/{job_id}/anteprima.md")
+    def scarica_anteprima(job_id: str):
+        return _servi_file(job_id, "anteprima.md")
 
     @api.get("/jobs/{job_id}/guida.md")
     def scarica_guida(job_id: str):

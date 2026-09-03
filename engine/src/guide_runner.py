@@ -191,6 +191,37 @@ def assembla_guida(brief: Brief, assignments: list[ChapterAssignment], stato: di
     return guida_path, costi_path
 
 
+def assembla_anteprima(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> Path:
+    """Assembla l'assaggio: i capitoli già consegnati, con un congedo che
+    annuncia il resto del libro.
+
+    Serve a far leggere qualcosa di VERO prima del paywall: non l'indice, non un
+    riassunto, ma i capitoli scritti sulle loro tappe. Scrive anteprima.md.
+    """
+    out_dir = _guide_dir(brief)
+    capitoli = stato.get("capitoli", {})
+    corpi: list[str] = []
+    for a in assignments:
+        e = capitoli.get(str(a.numero), {})
+        if e.get("stato") not in ("approvato", "da_rivedere"):
+            continue
+        cap_path, _ = chapter_paths(brief, a)
+        if not cap_path.exists():
+            continue
+        corpi.append(_corpo_senza_meta(cap_path.read_text(encoding="utf-8")))
+
+    restanti = max(len(assignments) - len(corpi), 0)
+    coda = (
+        "\n\n---\n\n*Qui si ferma l'assaggio. Il vostro libro prosegue per altri "
+        f"{restanti} capitoli, scritti sulle vostre tappe e sulle vostre date.*\n"
+    )
+    path = out_dir / "anteprima.md"
+    path.write_text("\n\n---\n\n".join(corpi) + coda, encoding="utf-8")
+    return path
+
+
 def scrivi_da_rivedere(
     brief: Brief, assignments: list[ChapterAssignment], stato: dict
 ) -> Path:
@@ -250,8 +281,14 @@ def scrivi_da_rivedere(
 # --------------------------------------------------------------- orchestrazione
 
 
-def orchestrazione(brief: Brief, on_progress=None) -> int:
-    """Esegue la guida intera. Ritorna il codice di uscita (0 ok, 1 interrotta).
+def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> int:
+    """Esegue la guida. Ritorna 0 (completa), 1 (interrotta) o 2 (assaggio pronto).
+
+    Con `anteprima=True` non si scrive il libro intero: ci si ferma appena
+    consegnato il primo capitolo di tappa (o il primo capitolo, secondo
+    `config.ANTEPRIMA_FINO_A_TAPPA`) e si assembla anteprima.md. Non è un
+    errore: è il punto in cui il lettore ha in mano qualcosa di vero, prima del
+    paywall — e il costo grosso non è stato speso.
 
     `on_progress`, se fornito, è una callable invocata con lo stato corrente
     (dict) dopo ogni scrittura di stato durante il ciclo dei capitoli. Serve agli
@@ -382,6 +419,17 @@ def orchestrazione(brief: Brief, on_progress=None) -> int:
             f"Capitolo {a.numero} {etichetta} (costo ${costo_cap:.4f}, "
             f"cumulato ${costo_cumulato:.2f})."
         )
+
+        # ASSAGGIO: fermata voluta, non un guasto. Il lettore ha in mano
+        # l'introduzione e il primo capitolo sulle sue tappe; il resto si
+        # sblocca col pagamento.
+        if anteprima and (a.tipo == "tappa" or not config.ANTEPRIMA_FINO_A_TAPPA):
+            percorso = assembla_anteprima(brief, assignments, stato)
+            print(
+                f"\nASSAGGIO PRONTO. {percorso} "
+                f"({len(riassunti)} capitoli, costo ${costo_cumulato:.2f})."
+            )
+            return 2
 
         # FAIL-FAST 4: tetto di spesa cumulativo superato → ferma.
         if costo_cumulato > config.max_costo_guida_usd():
