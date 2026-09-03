@@ -1,0 +1,60 @@
+# Stato del progetto — handoff
+
+Documento di ripresa: leggilo per riprendere il lavoro in una sessione nuova.
+
+## Cos'è
+Motore che, da un brief di viaggio, scrive una guida-libro personalizzata
+(capitoli narrativi, verificati con ricerca web, con critica e lista di
+revisione). Attorno, un prototipo web: form → intervista AI → generazione →
+lettura.
+
+## Architettura
+- `engine/` — motore Python (indipendente dall'host). Vedi README.
+- `modal_app.py` — il motore esposto come servizio su **Modal**.
+  Endpoint live: `https://filippomanfroni--travelguide-web.modal.run`
+  (`/health`, `POST /intervista`, `POST /generate`, `GET /jobs/{id}`,
+  `GET /jobs/{id}/guida.md`, `/da_rivedere.md`).
+- Frontend **Lovable** (React): progetto `4a6b4fed-5e13-4cf0-ab64-4fddcd1d32a2`
+  preview `https://id-preview--4a6b4fed-5e13-4cf0-ab64-4fddcd1d32a2.lovable.app`
+  Flusso: Landing → Form brief → Intervista → Avanzamento → Guida.
+
+Branch di lavoro: `claude/guida-grecia-ycoy3u` (PR #1 aperta verso `main`).
+
+## Cosa funziona (provato end-to-end)
+Form → intervista → `/generate` → avanzamento live per capitolo → arresto al
+tetto di spesa. Guida intera della Grecia generata (14 capitoli, ~$17).
+
+## Decisioni prese
+- **Fixer spento** (`FIXER_ENABLED=False`): i capitoli con alert non risolti si
+  consegnano e vanno in `da_rivedere.md`; la guida non si ferma.
+- **Intervista**: voce "il vostro autore" — reagisce, un asse per domanda,
+  opzioni tappabili, chiusura col ritratto.
+- **Modello di business**: assaggio gratis (outline + intro + primo
+  capitolo-tappa) → paywall → libro intero. Mai spendere i ~$17 prima
+  dell'incasso.
+- **Prezzo per dimensione del libro**, svelato dopo l'outline:
+  €19 (5-7 cap) / €29 (8-12) / €39 (13-18) / €49 (19+).
+- **Anti-abuso**: login magic link + Google (Supabase via Lovable) + Cloudflare
+  Turnstile + **tetto di spesa globale €10/giorno** + limite per email + Modal
+  chiuso con un segreto (solo la "porta" lo chiama).
+
+## Prossimi passi
+1. **Fase 1 — la porta (sicurezza).** Supabase auth (magic link + Google),
+   Turnstile, tetto €10/giorno e limite per email in Edge Function; Modal
+   accetta solo chiamate col segreto. *Serve: chiavi Turnstile (Site+Secret).*
+2. **Fase 2 — servire l'assaggio.** Oggi `guida.md` esiste solo a guida
+   completa: va servito il parziale (intro + primo capitolo-tappa), altrimenti
+   "Leggi quello che c'è" non mostra nulla.
+3. **Fase 3 — pagamenti.** Stripe: sblocco → generazione completa (~45 min,
+   async) → email "il libro è pronto".
+4. **Look di produzione** con Claude Design (traccia separata).
+
+## Note operative
+- Il deploy Modal **non si può fare da Claude Code**: l'egress proxy blocca
+  `*.modal.com` e `*.modal.run` (403). Si fa da **Google Cloud Shell**:
+  `cd ~/Travelguide && git pull && modal deploy modal_app.py`
+- Test economico: campo `_tetto_usd` nel body di `/generate` (es. `0.30`)
+  limita la spesa del run (outline + primo capitolo, ~$0.50).
+- Il secret Anthropic su Modal si chiama `anthropic-secret` ed espone
+  `ANTHROPIC_API_KEY` (il motore legge `GUIDE_ENGINE_KEY`, c'è un ponte).
+- Non diffondere l'URL pubblico finché non c'è la porta (Fase 1).
