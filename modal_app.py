@@ -155,6 +155,7 @@ def web():
     """App FastAPI: intervista di intake, avvio job, stato/avanzamento, artefatti."""
     import json
     import os
+    import sys
     import uuid
     from datetime import datetime, timezone
 
@@ -175,12 +176,23 @@ def web():
     # GATE_SECRET non è configurato nel secret Modal, il controllo è inattivo:
     # così il cutover si fa senza finestre rotte (prima si costruisce la porta,
     # poi si imposta il segreto e si ridiploya).
-    _gate = os.environ.get("GATE_SECRET")
+    # Confronto insensibile a spazi e a-capo: incollando il segreto nei pannelli
+    # di Modal/Supabase ci finisce spesso un carattere invisibile in coda, e il
+    # sintomo (403 con il segreto "giusto") è impossibile da diagnosticare a occhio.
+    _gate = (os.environ.get("GATE_SECRET") or "").strip()
 
     def _controlla_porta(request: Request) -> None:
         if not _gate:
             return
-        if request.headers.get("X-Gate-Secret") != _gate:
+        ricevuto = (request.headers.get("X-Gate-Secret") or "").strip()
+        if ricevuto != _gate:
+            # Solo le lunghezze: aiutano a capire (0 = header assente) senza
+            # esporre il segreto nei log.
+            print(
+                f"porta: segreto non corrispondente "
+                f"(atteso {len(_gate)} caratteri, ricevuti {len(ricevuto)})",
+                file=sys.stderr,
+            )
             raise HTTPException(status_code=403, detail="Accesso non consentito.")
 
     api = FastAPI(title="TravelGuide Engine")
