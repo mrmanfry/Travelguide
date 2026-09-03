@@ -263,12 +263,20 @@ def web():
         errore = os.path.exists(os.path.join(d, "ERRORE.txt"))
         stallo = False
         if not completa and arresto is None and not errore:
-            battito = _leggi_json(os.path.join(d, "battito.json"))
-            try:
-                ultimo = datetime.fromisoformat((battito or {}).get("ts"))
+            ultimo = None
+            ts = (_leggi_json(os.path.join(d, "battito.json")) or {}).get("ts")
+            if ts:
+                try:
+                    ultimo = datetime.fromisoformat(ts)
+                except ValueError:
+                    ultimo = None
+            if ultimo is None:
+                # Job avviati prima del battito: vale l'ultimo aggiornamento di stato.
+                p_stato = os.path.join(d, "stato.json")
+                if os.path.exists(p_stato):
+                    ultimo = datetime.fromtimestamp(os.path.getmtime(p_stato), timezone.utc)
+            if ultimo is not None:
                 stallo = (datetime.now(timezone.utc) - ultimo).total_seconds() > 25 * 60
-            except (TypeError, ValueError):
-                stallo = False
 
         if completa:
             fase = "completa"
