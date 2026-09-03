@@ -113,7 +113,7 @@ def web():
     import os
     import uuid
 
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import PlainTextResponse
 
@@ -124,6 +124,19 @@ def web():
     _chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
     if _chiave:
         os.environ["GUIDE_ENGINE_KEY"] = _chiave
+
+    # Segreto della "porta": gli endpoint che spendono (intervista, generate)
+    # accettano solo chiamate col header X-Gate-Secret corrispondente. Finché
+    # GATE_SECRET non è configurato nel secret Modal, il controllo è inattivo:
+    # così il cutover si fa senza finestre rotte (prima si costruisce la porta,
+    # poi si imposta il segreto e si ridiploya).
+    _gate = os.environ.get("GATE_SECRET")
+
+    def _controlla_porta(request: Request) -> None:
+        if not _gate:
+            return
+        if request.headers.get("X-Gate-Secret") != _gate:
+            raise HTTPException(status_code=403, detail="Accesso non consentito.")
 
     api = FastAPI(title="TravelGuide Engine")
     # Prototipo: il frontend (Lovable) sta su un altro dominio → CORS aperto.
@@ -149,7 +162,7 @@ def web():
         return {"ok": True}
 
     @api.post("/intervista")
-    def intervista(payload: dict):
+    def intervista(payload: dict, request: Request):
         """Un turno di intervista di intake sul brief del form.
 
         body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}]}
@@ -160,6 +173,7 @@ def web():
         risposta dell'utente in `messaggi` e richiama; a "fine" usa il brief
         arricchito.
         """
+        _controlla_porta(request)
         if not isinstance(payload, dict):
             raise HTTPException(status_code=400, detail="Payload non valido.")
         brief = payload.get("brief") or {}
@@ -171,13 +185,14 @@ def web():
         return passo_intervista(brief, messaggi)
 
     @api.post("/generate")
-    def generate(brief: dict):
+    def generate(brief: dict, request: Request):
         """Avvia una generazione. Ritorna il job_id per il polling.
 
         Campo opzionale `_tetto_usd` nel body: budget di spesa del run (per un
         test di collegamento a basso costo). Viene estratto e non fa parte del
         brief passato al motore.
         """
+        _controlla_porta(request)
         if not isinstance(brief, dict) or not brief:
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
         brief = dict(brief)
