@@ -180,6 +180,14 @@ def web():
     # di Modal/Supabase ci finisce spesso un carattere invisibile in coda, e il
     # sintomo (403 con il segreto "giusto") è impossibile da diagnosticare a occhio.
     _gate = (os.environ.get("GATE_SECRET") or "").strip()
+    if not _gate:
+        # Stato pericoloso e silenzioso: senza segreto gli endpoint che spendono
+        # sono aperti a chiunque. Va gridato nei log e visibile da /health.
+        print(
+            "ATTENZIONE: PORTA DISATTIVATA — GATE_SECRET assente: "
+            "/intervista e /generate sono aperti al pubblico.",
+            file=sys.stderr,
+        )
 
     def _controlla_porta(request: Request) -> None:
         if not _gate:
@@ -216,7 +224,9 @@ def web():
 
     @api.get("/health")
     def health():
-        return {"ok": True}
+        # `porta` dice se il lucchetto è attivo, senza rivelare il segreto:
+        # basta un curl per accorgersi di averlo perso in un redeploy.
+        return {"ok": True, "porta": "attiva" if _gate else "DISATTIVATA"}
 
     @api.post("/intervista")
     def intervista(payload: dict, request: Request):
