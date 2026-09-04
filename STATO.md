@@ -38,16 +38,21 @@ tetto di spesa. Guida intera della Grecia generata (14 capitoli, ~$17).
   Turnstile + **tetto di spesa globale €10/giorno** + limite per email + Modal
   chiuso con un segreto (solo la "porta" lo chiama).
 
+## Fatto
+- **Fase 1 — la porta.** Supabase auth (magic link + Google), Turnstile, tetto
+  €10/giorno e limite per email nelle Edge Function; Modal accetta solo chiamate
+  con l'header `X-Gate-Secret`.
+- **Fase 2 — assaggio servito.** `anteprima=True` ferma il motore dopo
+  l'introduzione e scrive `anteprima.md`; `/jobs` risponde fase `anteprima` con
+  il link e con `libro: {capitoli, prezzo_eur}` per il paywall.
+
 ## Prossimi passi
-1. **Fase 1 — la porta (sicurezza).** Supabase auth (magic link + Google),
-   Turnstile, tetto €10/giorno e limite per email in Edge Function; Modal
-   accetta solo chiamate col segreto. *Serve: chiavi Turnstile (Site+Secret).*
-2. **Fase 2 — servire l'assaggio.** Oggi `guida.md` esiste solo a guida
-   completa: va servito il parziale (intro + primo capitolo-tappa), altrimenti
-   "Leggi quello che c'è" non mostra nulla.
-3. **Fase 3 — pagamenti.** Stripe: sblocco → generazione completa (~45 min,
-   async) → email "il libro è pronto".
-4. **Look di produzione** con Claude Design (traccia separata).
+1. **Fase 3 — pagamenti.** Stripe: paywall col prezzo che `/jobs` già espone →
+   sblocco → generazione del libro intero (~45 min, async).
+2. **Email di consegna** ("il vostro libro è pronto"): dopo il pagamento
+   l'attesa è lunga, serve avvisare.
+3. **Look di produzione** con Claude Design (traccia separata).
+4. Poi: PDF del libro; avviso quando il credito Anthropic scende sotto soglia.
 
 ## Note operative
 - Il deploy Modal **non si può fare da Claude Code**: l'egress proxy blocca
@@ -57,4 +62,11 @@ tetto di spesa. Guida intera della Grecia generata (14 capitoli, ~$17).
   limita la spesa del run (outline + primo capitolo, ~$0.50).
 - Il secret Anthropic su Modal si chiama `anthropic-secret` ed espone
   `ANTHROPIC_API_KEY` (il motore legge `GUIDE_ENGINE_KEY`, c'è un ponte).
-- Non diffondere l'URL pubblico finché non c'è la porta (Fase 1).
+- **Dopo ogni deploy**: `curl .../health` deve dire `{"porta":"attiva"}`. Se dice
+  `DISATTIVATA` manca `GATE_SECRET` e gli endpoint costosi sono aperti.
+- Modificare un secret su Modal **non basta**: i container caldi tengono il
+  vecchio valore, serve un nuovo `modal deploy`.
+- L'assaggio è la sola introduzione (`ANTEPRIMA_FINO_A_TAPPA=False`), ~$0.5 a
+  utente: col tetto di €10/giorno regge una decina di assaggi. Rimettere `True`
+  (assaggio fino al primo capitolo-tappa, ~$4) quando Stripe incassa e il tetto
+  sale.
