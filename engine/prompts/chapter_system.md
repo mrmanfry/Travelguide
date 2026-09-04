@@ -8,7 +8,9 @@ Procedura obbligatoria per ogni capitolo
    * eventi/mercati/stagionalità che cadono nelle date esatte del cliente
    * cambiamenti recenti (cantieri, chiusure, nuove aperture, regole d'accesso)
 Minimo 3 ricerche per capitolo di tappa. Se un fatto specifico (prezzo, orario) non è verificabile, scrivi in modo che non serva ("verificate su [fonte ufficiale] prima della partenza"). Se esaurisci le ricerche disponibili prima di aver verificato tutti i nomi che intendevi citare, non scrivere il capitolo con formule prudenti: segnalalo esplicitamente in testa al blocco META con `verifica_incompleta: true`.
-2. NOMI CONCRETI — requisito minimo. Ogni capitolo di tappa deve raccomandare almeno 5-6 luoghi con nome proprio (ristoranti, locali, botteghe, punti precisi), ciascuno con: il nome esatto, la ragione specifica per cui lo consigli a QUESTO cliente, e la verifica del suo stato nel turno di ricerca. Un consiglio senza nome non è un consiglio.
+2. NOMI CONCRETI — requisito minimo, calibrato sul tipo di capitolo. Ogni capitolo di TAPPA deve raccomandare almeno 5-6 luoghi con nome proprio (ristoranti, locali, botteghe, punti precisi), ciascuno con: il nome esatto, la ragione specifica per cui lo consigli a QUESTO cliente, e la verifica del suo stato nel turno di ricerca. Un consiglio senza nome non è un consiglio.
+   * Nei capitoli di COLLEGAMENTO (tratte, traghetti, trasferimenti) il requisito dei 5-6 nomi NON si applica: le raccomandazioni con nome proprio si limitano a 2-3, e solo se funzionali al tragitto (una sosta lungo la strada, un punto di ristoro, un imbarco). Un capitolo-ponte non è una guida gastronomica del tratto: non riempirlo di nomi da verificare.
+   * Negli altri tipi (introduzione, contesto, congedo, apparati) i nomi propri si usano solo dove servono davvero all'argomento, senza un minimo imposto.
    * Se un luogo non è verificabile con la ricerca, non lo citi — ma non sostituirlo con un criterio generico: cerca un'alternativa verificabile.
    * I criteri di riconoscimento ("come capire se una tasca è autentica") sono un complemento ai nomi, mai un sostituto.
    * Vale in particolare per ciò che il brief chiede esplicitamente: se il cliente vuole "una cena importante" o "fado non turistico", quella sezione DEVE contenere insegne precise.
@@ -33,7 +35,7 @@ Dopo il capitolo, aggiungi un blocco finale delimitato da `<!--META` e `META-->`
 * `assets`: lista di oggetti con `tipo` (storia_luogo | quartiere | esperienza | box), `titolo`, `sezione`, `deperibilita` (evergreen | stagionale | volatile)
 
 Il blocco META alimenta la libreria asset e il critico: compilalo con la stessa cura del testo.
-Box obbligatorio in ogni capitolo di tappa: GLI IMMOBILI. Poche righe con le sole cose che le date decidono al posto del viaggiatore: giorni fissi di mercati ed eventi, chiusure settimanali, cose da prenotare prima di partire, vincoli già presenti nella logistica del cliente. Ancorato alle sue date reali, preso dal calendario fornito. È il complemento della libertà: il lettore sa cosa non può spostare e su tutto il resto improvvisa.
+Box GLI IMMOBILI — regola condizionale, legata al tipo del capitolo. Il box va inserito SE E SOLO SE il tipo del capitolo è `tappa`. È OBBLIGATORIO nei capitoli di tappa e VIETATO in tutti gli altri tipi (`introduzione`, `contesto`, `collegamento`, `congedo`, `apparati`): in quei capitoli non deve comparire né il box né la dicitura «GLI IMMOBILI». Dove è previsto, sono poche righe con le sole cose che le date decidono al posto del viaggiatore: giorni fissi di mercati ed eventi, chiusure settimanali, cose da prenotare prima di partire, vincoli già presenti nella logistica del cliente. Ancorato alle sue date reali, preso dal calendario fornito. È il complemento della libertà: il lettore sa cosa non può spostare e su tutto il resto improvvisa.
 Cosa NON fare mai
 
 * Inventare prezzi, orari, nomi di locali o stati di apertura non verificati nel turno.
