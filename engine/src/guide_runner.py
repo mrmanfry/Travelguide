@@ -142,6 +142,69 @@ def _corpo_senza_meta(testo: str) -> str:
     return corpo.rstrip()
 
 
+SEZIONE_RE = re.compile(r"^##\s+(.+)$", re.MULTILINE)
+
+
+def _senza_titolo(corpo: str) -> str:
+    """Il corpo del capitolo senza la riga di titolo iniziale."""
+    righe = corpo.lstrip().split("\n")
+    if righe and righe[0].startswith("# "):
+        righe = righe[1:]
+    return "\n".join(righe).strip()
+
+
+def scrivi_libro_json(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> Path:
+    """Scrive libro.json: il libro con la sua struttura, non come testo piatto.
+
+    guida.md è un file di prosa: chi lo riceve deve indovinare, dalle righe che
+    cominciano con un cancelletto, cosa sia un capitolo e cosa una sezione — e
+    sbaglia, perché i due livelli si somigliano. Il risultato visto sul primo
+    libro finito è stato un indice di ottantacinque voci in cui i capitoli e le
+    loro sezioni stavano mescolati sullo stesso piano.
+
+    Questo file toglie di mezzo l'indovinello: ogni capitolo ha numero, titolo,
+    tipo, l'elenco delle sue sezioni e il corpo in markdown senza la riga del
+    titolo (che chi legge renderà a modo suo). I capitoli non ancora scritti non
+    compaiono: c'è quello che c'è.
+    """
+    capitoli_stato = stato.get("capitoli", {})
+    voci = []
+    for a in assignments:
+        e = capitoli_stato.get(str(a.numero), {})
+        if e.get("stato") not in ("approvato", "da_rivedere"):
+            continue
+        cap_path, _ = chapter_paths(brief, a)
+        if not cap_path.exists():
+            continue
+        testo = cap_path.read_text(encoding="utf-8")
+        corpo = _corpo_senza_meta(testo)
+        voci.append(
+            {
+                "numero": a.numero,
+                "titolo": _titolo_capitolo(corpo, a.titolo_provvisorio),
+                "tipo": a.tipo,
+                "sezioni": [s.strip() for s in SEZIONE_RE.findall(corpo)],
+                "corpo_md": _senza_titolo(corpo),
+            }
+        )
+    path = _guide_dir(brief) / "libro.json"
+    path.write_text(
+        json.dumps(
+            {
+                "brief_id": brief.brief_id,
+                "capitoli_totali": len(assignments),
+                "capitoli": voci,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def assembla_guida(brief: Brief, assignments: list[ChapterAssignment], stato: dict) -> tuple[Path, Path]:
     """A guida completa: scrive guida.md (indice + capitoli) e costi_guida.json."""
     out_dir = _guide_dir(brief)
@@ -369,6 +432,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
         """
         try:
             parziale = assembla_parziale(brief, assignments, stato)
+            scrivi_libro_json(brief, assignments, stato)
             revisione = scrivi_da_rivedere(brief, assignments, stato)
             if parziale:
                 print(f"Capitoli già scritti, leggibili: {parziale} | {revisione}")
@@ -491,6 +555,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
         # sblocca col pagamento.
         if anteprima and (a.tipo == "tappa" or not config.ANTEPRIMA_FINO_A_TAPPA):
             percorso = assembla_anteprima(brief, assignments, stato)
+            scrivi_libro_json(brief, assignments, stato)
             print(
                 f"\nASSAGGIO PRONTO. {percorso} "
                 f"({len(riassunti)} capitoli, costo ${costo_cumulato:.2f})."
@@ -513,6 +578,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
 
     # Tutti i capitoli consegnati → assemblaggio + lista di revisione.
     guida_path, costi_path = assembla_guida(brief, assignments, stato)
+    scrivi_libro_json(brief, assignments, stato)
     da_rivedere_path = scrivi_da_rivedere(brief, assignments, stato)
     n_rivedere = sum(
         1 for e in stato["capitoli"].values() if e.get("stato") == "da_rivedere"

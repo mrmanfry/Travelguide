@@ -638,6 +638,21 @@ def web():
     def scarica_anteprima(job_id: str):
         return _servi_file(job_id, "anteprima.md")
 
+    @api.get("/jobs/{job_id}/libro.json")
+    def scarica_libro(job_id: str):
+        """Il libro con la sua struttura: capitoli, sezioni, corpo in markdown.
+
+        Da preferire sempre a guida.md per mostrare il libro: quel file e'
+        prosa, e ricavarne l'indice contando i cancelletti mescola i capitoli
+        con le loro sezioni.
+        """
+        output_volume.reload()
+        path = os.path.join(_job_dir(job_id), "libro.json")
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="libro.json non ancora disponibile.")
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
     @api.get("/jobs/{job_id}/parziale.md")
     def scarica_parziale(job_id: str):
         return _servi_file(job_id, "parziale.md")
