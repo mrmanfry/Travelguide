@@ -43,9 +43,24 @@ Cerchi esattamente questo:
 - Il numero e la composizione dei viaggiatori contro se stessi.
 - Passioni o richieste che il mezzo o le date rendono impossibili.
 
-NON segnalare: ambizioni faticose ma possibili, gusti insoliti, budget bassi,
-campi vuoti, o cose che richiedono di sapere orari e prezzi reali (non hai
-ricerca: non inventare fatti sul mondo).
+Come leggere le date: sono nel formato giorno.mese — "21.10" è il 21 ottobre,
+mai le 21:10. Non trattare mai una data come un orario.
+
+NON segnalare, per nessun motivo:
+- Se un programma ti sembra stretto, faticoso o troppo pieno. Quanto ci sta in
+  una giornata lo decide chi viaggia, non tu.
+- Qualunque cosa che per essere giudicata richieda un fatto sul mondo reale:
+  durate di volo, distanze, orari, prezzi, stagioni, quanto dista una città
+  dall'altra. Non hai ricerca e non devi supplire con quello che credi di
+  sapere: sbaglieresti, e con sicurezza.
+- Gusti insoliti, budget bassi, campi vuoti, ambizioni faticose ma possibili.
+
+Segnali solo ciò che si contraddice DENTRO la scheda: due campi che non possono
+essere veri insieme, o un conto che non torna facendo l'aritmetica sui numeri
+che hai davanti.
+
+Al massimo cinque avvisi. Se ne trovi di più, tieni i cinque che cambierebbero
+davvero il libro e lascia perdere il resto: una lista lunga non viene letta.
 
 Rispondi SOLO con un oggetto JSON, senza testo attorno:
 
@@ -53,8 +68,14 @@ Rispondi SOLO con un oggetto JSON, senza testo attorno:
   "problema": "<una frase: cosa non torna, citando i valori>",
   "domanda": "<una frase rivolta al viaggiatore, in italiano, dandogli del voi>"}]}
 
-"bloccante" = il libro uscirebbe sbagliato (un luogo di un altro paese, un mezzo
-che contraddice il viaggio). "attenzione" = è strano ma potrebbe essere voluto.
+"bloccante" si usa solo quando il libro uscirebbe FATTUALMENTE sbagliato: un
+luogo di un altro paese tra i posti da vedere, un mezzo di trasporto che nel
+viaggio non esiste. Tutto il resto — conteggi confusi, dettagli che la scheda
+non riesce a esprimere, cose strane ma forse volute — è "attenzione".
+
+Le due frasi vanno scritte così: `problema` cita i valori ed è asciutto;
+`domanda` è una sola domanda al viaggiatore, in italiano, dandogli del voi,
+senza gergo e senza nominare i campi del sistema.
 
 Se la scheda è coerente: {"avvisi": []}. Non riempire per forza.
 """
