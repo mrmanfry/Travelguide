@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 engine/output/*
 !engine/output/.gitkeep
+
+# Canvas di design generato dai sorgenti .dc.html (rigenerabile, ~2 MB)
+design/atelier-del-viaggio.html

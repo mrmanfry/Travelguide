@@ -1,0 +1,29 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "1 · Landing", "x": 0, "y": 0, "w": 1440, "h": 2200 },
+    { "file": "Brief.dc.html", "title": "2 · Il brief", "x": 1560, "y": 0, "w": 1440, "h": 1800 },
+    { "file": "Intervista.dc.html", "title": "3 · L'intervista", "x": 3120, "y": 0, "w": 900, "h": 1250 },
+    { "file": "Avanzamento.dc.html", "title": "4 · Avanzamento", "x": 4140, "y": 0, "w": 1100, "h": 1100 },
+    { "file": "Assaggio.dc.html", "title": "5 · Assaggio e paywall", "x": 5360, "y": 0, "w": 1000, "h": 1800 },
+    { "file": "Libro.dc.html", "title": "6 · Il libro", "x": 6480, "y": 0, "w": 1440, "h": 1050 },
+    { "file": "DirezioneB.dc.html", "title": "Direzione B (scartata)", "x": 0, "y": 2360, "w": 560, "h": 420 },
+    { "file": "DirezioneC.dc.html", "title": "Direzione C (scartata)", "x": 680, "y": 2360, "w": 560, "h": 420 }
+  ],
+  "annotations": [
+    {
+      "id": "flusso",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "text": "Il flusso, da sinistra a destra: Landing → Brief → Intervista → Avanzamento → Assaggio col paywall → Libro completo.\n\nDirezione scelta: \"Carta e inchiostro\". Carattere da libro (EB Garamond) con un grottesco preciso per l'interfaccia (Archivo), carta calda, un solo accento terracotta, filetti sottili invece di ombre. Niente Fraunces: è il font di default di mezzo web generato da AI e ci farebbe sembrare un tool."
+    },
+    {
+      "id": "direzioni",
+      "x": 1400,
+      "y": 2360,
+      "w": 520,
+      "text": "Le due direzioni che ho scartato, tenute qui per confronto.\n\nSe una delle due vi convince di più, la sviluppo su tutte e sei le schermate: sono scelte di tono, non di gusto — cambiano quanto il prodotto sembra artigianale, caldo o di design."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
