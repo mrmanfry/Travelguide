@@ -70,3 +70,7 @@ tetto di spesa. Guida intera della Grecia generata (14 capitoli, ~$17).
   utente: col tetto di €10/giorno regge una decina di assaggi. Rimettere `True`
   (assaggio fino al primo capitolo-tappa, ~$4) quando Stripe incassa e il tetto
   sale.
+
+## Chiavi e segreti
+Vedi **CHIAVI.md**: mappa completa di dove vive ogni valore (Anthropic, Modal,
+Cloudflare, Lovable, Supabase) e degli errori tipici quando divergono.
