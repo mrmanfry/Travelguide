@@ -281,9 +281,19 @@ def web():
 
     @api.post("/intervista")
     def intervista(payload: dict, request: Request):
-        """Un turno di intervista di intake sul brief del form.
+        """Un turno di conversazione sulla scheda del viaggio.
 
-        body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}]}
+        Due modi, col campo opzionale `modo`:
+
+        * assente o "intake" — l'intervista di conoscenza prima di scrivere.
+        * "correzione" — la scheda esiste già e il viaggiatore sta rispondendo
+          ai punti che non tornavano. Mandato diverso, prompt diverso: qui non
+          si fanno domande sui gusti e si chiude appena la scheda è a posto.
+          Il campo opzionale `avvisi` porta i punti aperti (le voci di
+          `avvisi_brief`), così l'autore sa a cosa si sta rispondendo.
+
+        body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}],
+               "modo": "intake"|"correzione", "avvisi": [{...}]}
         Ritorna {"azione": "domanda"|"fine", "messaggio": "...",
         "opzioni": ["..."], "brief": {...}|null}. `opzioni` sono risposte brevi
         tappabili (chip) che accompagnano una domanda; [] quando non servono o
@@ -298,9 +308,12 @@ def web():
         messaggi = payload.get("messaggi") or []
         if not isinstance(brief, dict) or not brief:
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
+        modo = "correzione" if payload.get("modo") == "correzione" else "intake"
+        avvisi = payload.get("avvisi")
+        avvisi = avvisi if isinstance(avvisi, list) else None
         from src.intervista import passo_intervista
 
-        return passo_intervista(brief, messaggi)
+        return passo_intervista(brief, messaggi, modo, avvisi)
 
     @api.post("/generate")
     def generate(brief: dict, request: Request):
