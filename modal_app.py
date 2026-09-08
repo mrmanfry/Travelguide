@@ -270,9 +270,14 @@ def web():
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
         brief = dict(brief)
         tetto_usd = brief.pop("_tetto_usd", None)
-        anteprima = bool(brief.pop("_anteprima", False))
+        brief.pop("_anteprima", None)  # ignorato di proposito, vedi sotto
         job_id = uuid.uuid4().hex[:12]
-        genera_guida.spawn(brief, job_id, tetto_usd, anteprima)
+        # Da questa porta esce SOLO l'assaggio, qualunque cosa venga chiesta.
+        # Il libro intero (~17 $) si scrive unicamente da /completa, che richiede
+        # il segreto ed è chiamato solo dal webhook del pagamento. Così la via
+        # costosa è irraggiungibile per costruzione, e non dipende dal fatto che
+        # il codice del sito ricordi di chiedere l'assaggio.
+        genera_guida.spawn(brief, job_id, tetto_usd, True)
         return {"job_id": job_id}
 
     @api.post("/jobs/{job_id}/completa")

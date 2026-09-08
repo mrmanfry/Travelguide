@@ -3,7 +3,7 @@
 Dove vive ogni valore, chi lo legge, e cosa non deve mai succedere.
 
 ## Regola d'oro
-**`GATE_SECRET` (Modal) e `MODAL_GATE_SECRET` (Lovable) devono essere lo stesso
+**`GATE_SECRET` su Modal e `GATE_SECRET` su Lovable devono essere lo stesso
 identico valore.** È la causa numero uno dei guasti: se divergono, Modal risponde
 403 e l'app dice "L'atelier è occupato".
 Scrivi il segreto **una volta** in un posto tuo e copialo da lì in entrambi i
@@ -44,8 +44,8 @@ quindi questi valori stanno nei segreti del **progetto Lovable**.
 
 | Nome | Valore | Obbligatorio |
 |---|---|---|
-| `MODAL_BASE_URL` | `https://filippomanfroni--travelguide-web.modal.run` | sì |
-| `MODAL_GATE_SECRET` | uguale a `GATE_SECRET` su Modal | sì |
+| `MOTORE_BASE_URL` | `https://filippomanfroni--travelguide-web.modal.run` | sì |
+| `GATE_SECRET` | uguale a `GATE_SECRET` su Modal | sì |
 | `TURNSTILE_SECRET_KEY` | Secret key di Cloudflare | sì |
 | `EMAIL_ILLIMITATE` | email di prova separate da virgola, esenti dai limiti per email (non dal tetto di spesa) | no |
 
@@ -72,5 +72,5 @@ Iniziare in **modalità test**: nessun denaro vero finché il flusso non è prov
 ---
 
 ## Cosa non deve mai finire nel frontend
-La chiave Anthropic, `GATE_SECRET`/`MODAL_GATE_SECRET`, la Secret key di
+La chiave Anthropic, `GATE_SECRET`, la Secret key di
 Turnstile, la Secret key di Stripe, la service role di Supabase.
