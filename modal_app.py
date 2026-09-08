@@ -349,16 +349,31 @@ def web():
             # Nessuno stato ancora scritto: job in coda o appena partito.
             return {"job_id": job_id, "fase": "in_coda", "capitoli": [], "totali": {}}
 
+        # Titoli veri dall'outline congelato. Senza questi il sito non ha modo
+        # di sapere come si chiama un capitolo e finisce per inventarli dalle
+        # tappe del brief — che sono un'altra cosa e in un altro ordine.
+        outline = _leggi_json(os.path.join(d, "outline.json")) or []
+        titoli = {
+            int(v.get("numero")): (v.get("titolo_provvisorio"), v.get("tipo"))
+            for v in outline
+            if isinstance(v, dict) and v.get("numero") is not None
+        }
+
         caps_raw = stato.get("capitoli", {})
-        capitoli = [
-            {
-                "numero": int(n),
-                "stato": e.get("stato"),
-                "costo_usd": e.get("costo"),
-                "punti_revisione": len(e.get("problemi_revisione") or []),
-            }
-            for n, e in sorted(caps_raw.items(), key=lambda kv: int(kv[0]))
-        ]
+        capitoli = []
+        for n, e in sorted(caps_raw.items(), key=lambda kv: int(kv[0])):
+            numero = int(n)
+            titolo, tipo = titoli.get(numero, (None, None))
+            capitoli.append(
+                {
+                    "numero": numero,
+                    "titolo": titolo,
+                    "tipo": tipo,
+                    "stato": e.get("stato"),
+                    "costo_usd": e.get("costo"),
+                    "punti_revisione": len(e.get("problemi_revisione") or []),
+                }
+            )
         consegnati = sum(1 for c in capitoli if c["stato"] in ("approvato", "da_rivedere"))
         costo = (
             sum((c["costo_usd"] or 0.0) for c in capitoli)

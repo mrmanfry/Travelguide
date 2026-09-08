@@ -268,6 +268,41 @@ def controlli_struttura(assignment: ChapterAssignment, testo: str) -> dict:
     }
 
 
+def rimuovi_box_immobili(testo: str) -> str | None:
+    """Toglie il box GLI IMMOBILI dalla prosa. Ritorna None se non è sicuro farlo.
+
+    Il box è un elemento chiuso e riconoscibile: una riga che porta la dicitura,
+    e sotto l'elenco dei vincoli, fino al titolo successivo o alla fine della
+    prosa. Quando finisce in un capitolo che non è una tappa è un errore di
+    forma, non di sostanza: toglierlo è un'operazione meccanica, e costa zero
+    contro la rigenerazione di un intero capitolo su Opus.
+
+    Prudenza: se il taglio porterebbe via più di un quarto del capitolo, la
+    dicitura non stava delimitando un box e si rinuncia (None) — meglio
+    rigenerare che consegnare un capitolo mutilato in silenzio.
+    """
+    corpo, sep, coda = testo.partition("<!--META")
+    righe = corpo.split("\n")
+    inizio = next((i for i, r in enumerate(righe) if IMMOBILI_MARK in r), None)
+    if inizio is None:
+        return None
+
+    # Il box finisce al titolo successivo (di qualunque livello); se non ce n'è,
+    # arriva in fondo alla prosa.
+    fine = len(righe)
+    for i in range(inizio + 1, len(righe)):
+        if re.match(r"^#{1,6} ", righe[i]):
+            fine = i
+            break
+
+    rimaste = righe[:inizio] + righe[fine:]
+    nuovo_corpo = "\n".join(rimaste).rstrip() + "\n"
+    tolte = len(" ".join(righe[inizio:fine]).split())
+    if tolte > 0.25 * len(corpo.split()):
+        return None
+    return nuovo_corpo + ("\n" + sep + coda if sep else "")
+
+
 def nota_revisione_immobili(assignment: ChapterAssignment) -> str:
     """Istruzione di rigenerazione quando il box GLI IMMOBILI non è conforme."""
     if assignment.tipo == "tappa":
@@ -502,6 +537,22 @@ def generate_chapter(
             )
         else:
             c = controlli_struttura(assignment, testo)
+            # Riparazione meccanica prima di ogni giudizio: un box GLI IMMOBILI
+            # finito in un capitolo che non è una tappa si toglie, non si fa
+            # riscrivere. Spesso sistema anche la lunghezza (il box pesa), e
+            # rigenerare un capitolo su Opus costa quanto tutto il resto della
+            # pipeline messo insieme.
+            if not c["immobili_ok"] and assignment.tipo != "tappa":
+                ripulito = rimuovi_box_immobili(testo)
+                if ripulito is not None:
+                    dopo = controlli_struttura(assignment, ripulito)
+                    if dopo["immobili_ok"]:
+                        testo, c = ripulito, dopo
+                        print(
+                            f"Capitolo {assignment.numero:02d}: box GLI IMMOBILI "
+                            f"rimosso (tipo '{assignment.tipo}', non ammesso).",
+                            file=sys.stderr,
+                        )
             parole = c["parole"]
             # Valido solo se rientra nella banda, porta un META parsabile (senza
             # META il controllo ricerche è inerte e la libreria asset resta vuota)
