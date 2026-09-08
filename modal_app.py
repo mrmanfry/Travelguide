@@ -162,6 +162,17 @@ def genera_guida(
     # Il brief resta accanto al job: dopo il pagamento si completa il libro senza
     # che il client debba rimandarlo (e senza potersi inventare un brief diverso).
     os.makedirs(dir_job, exist_ok=True)
+
+    # Un run che riparte cancella i segni della fermata precedente. Senza
+    # questo, ARRESTO.txt resta sul disco e l'endpoint continua a dichiarare la
+    # fase 'interrotta' per tutto il tempo in cui il motore sta scrivendo: la UI
+    # mostrerebbe "la scrittura si è interrotta" mentre i capitoli arrivano.
+    for segno in ("ARRESTO.txt", "ERRORE.txt"):
+        try:
+            os.remove(os.path.join(dir_job, segno))
+        except FileNotFoundError:
+            pass
+
     with open(os.path.join(dir_job, "brief.json"), "w", encoding="utf-8") as f:
         json.dump(brief_dict, f, ensure_ascii=False)
 
