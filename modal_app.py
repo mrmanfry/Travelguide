@@ -326,13 +326,24 @@ def web():
         return {"job_id": job_id}
 
     @api.post("/jobs/{job_id}/completa")
-    def completa(job_id: str, request: Request):
+    def completa(job_id: str, request: Request, payload: dict | None = None):
         """Completa un libro già iniziato: scrive i capitoli che mancano.
 
         Va chiamato SOLO dalla porta, dopo un pagamento verificato (il segreto
-        lo garantisce). Riprende lo stesso job: i capitoli già approvati non si
-        rigenerano, quindi l'assaggio già pagato dall'assaggio non si ripaga.
-        Il brief è quello salvato accanto al job, non uno fornito dal client.
+        lo garantisce). Riprende lo stesso job: i capitoli già consegnati non si
+        rigenerano, quindi l'assaggio già scritto non si ripaga.
+
+        Il brief è quello salvato accanto al job. L'UNICA eccezione è il campo
+        opzionale `brief` nel corpo: la scheda corretta dal viaggiatore quando
+        l'autore gli ha chiesto conto di un volo, di una data o di chi lascia il
+        gruppo. Arriva dal sito, che l'ha già legata al job e all'email
+        verificata, e passa comunque dalla porta col segreto.
+
+        Cosa cambia e cosa no: la scheda corretta vale per i capitoli ANCORA DA
+        SCRIVERE. L'outline resta congelato e i capitoli già consegnati non si
+        toccano — è la promessa fatta al lettore ("le prime pagine restano come
+        sono"). Una correzione non ridisegna il libro: lo scrive giusto da qui
+        in avanti.
         """
         _controlla_porta(request)
         output_volume.reload()
@@ -342,13 +353,61 @@ def web():
         brief = _leggi_json(os.path.join(d, "brief.json"))
         if not brief:
             raise HTTPException(status_code=404, detail="Lavoro non trovato.")
+
+        corretto = payload.get("brief") if isinstance(payload, dict) else None
+        brief_aggiornato = False
+        if isinstance(corretto, dict) and corretto:
+            corretto = dict(corretto)
+            corretto["brief_id"] = job_id
+            # Validare qui e non nel container: se la scheda corretta è rotta il
+            # sito deve saperlo subito con un 400, non scoprirlo mezz'ora dopo
+            # da un job che muore.
+            try:
+                from schema.brief import Brief
+
+                verificato = Brief.model_validate(corretto)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Scheda corretta non valida: {exc}"
+                )
+            # Lo schema ha un default per quasi ogni campo: una scheda svuotata
+            # per sbaglio lo supererebbe, e i capitoli restanti parlerebbero di
+            # un viaggio senza luoghi. Un itinerario vuoto non è una correzione.
+            if not verificato.tappe:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Scheda corretta senza tappe: il viaggio sparirebbe.",
+                )
+            # La scheda originale si conserva una volta sola: serve a capire, poi,
+            # che cosa il viaggiatore ha corretto e perché.
+            originale = os.path.join(d, "brief.originale.json")
+            if not os.path.exists(originale):
+                with open(originale, "w", encoding="utf-8") as f:
+                    json.dump(brief, f, ensure_ascii=False)
+            with open(os.path.join(d, "brief.json"), "w", encoding="utf-8") as f:
+                json.dump(corretto, f, ensure_ascii=False)
+            # Gli avvisi di coerenza si riferivano alla scheda vecchia: buttarli
+            # fa sì che il controllo giri di nuovo sulla scheda corretta, per
+            # pochi millesimi, invece di lasciare in giro allarmi già risolti.
+            try:
+                os.remove(os.path.join(d, "coerenza.json"))
+            except FileNotFoundError:
+                pass
+            brief = corretto
+            brief_aggiornato = True
+            print(f"Job {job_id}: scheda corretta dal viaggiatore, adottata.")
+
         # Segna che il completamento è stato autorizzato: da qui la fase torna
         # 'in_corso' anche se l'anteprima è già sul disco.
         with open(os.path.join(d, "completamento.json"), "w", encoding="utf-8") as f:
             json.dump({"ts": datetime.now(timezone.utc).isoformat()}, f)
         output_volume.commit()
         genera_guida.spawn(brief, job_id, None, False)
-        return {"ok": True, "gia_completo": False}
+        return {
+            "ok": True,
+            "gia_completo": False,
+            "brief_aggiornato": brief_aggiornato,
+        }
 
     @api.get("/jobs/{job_id}")
     def job_status(job_id: str):
