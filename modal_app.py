@@ -129,6 +129,12 @@ def genera_guida(
         with open(os.path.join(dir_job, "battito.json"), "w", encoding="utf-8") as f:
             json.dump({"ts": datetime.now(timezone.utc).isoformat()}, f)
 
+    # Il brief resta accanto al job: dopo il pagamento si completa il libro senza
+    # che il client debba rimandarlo (e senza potersi inventare un brief diverso).
+    os.makedirs(dir_job, exist_ok=True)
+    with open(os.path.join(dir_job, "brief.json"), "w", encoding="utf-8") as f:
+        json.dump(brief_dict, f, ensure_ascii=False)
+
     def _pubblica(_stato: dict) -> None:
         # Rende visibile stato.json (e i file già scritti) all'endpoint web.
         _battito()
@@ -269,6 +275,31 @@ def web():
         genera_guida.spawn(brief, job_id, tetto_usd, anteprima)
         return {"job_id": job_id}
 
+    @api.post("/jobs/{job_id}/completa")
+    def completa(job_id: str, request: Request):
+        """Completa un libro già iniziato: scrive i capitoli che mancano.
+
+        Va chiamato SOLO dalla porta, dopo un pagamento verificato (il segreto
+        lo garantisce). Riprende lo stesso job: i capitoli già approvati non si
+        rigenerano, quindi l'assaggio già pagato dall'assaggio non si ripaga.
+        Il brief è quello salvato accanto al job, non uno fornito dal client.
+        """
+        _controlla_porta(request)
+        output_volume.reload()
+        d = _job_dir(job_id)
+        if os.path.exists(os.path.join(d, "guida.md")):
+            return {"ok": True, "gia_completo": True}
+        brief = _leggi_json(os.path.join(d, "brief.json"))
+        if not brief:
+            raise HTTPException(status_code=404, detail="Lavoro non trovato.")
+        # Segna che il completamento è stato autorizzato: da qui la fase torna
+        # 'in_corso' anche se l'anteprima è già sul disco.
+        with open(os.path.join(d, "completamento.json"), "w", encoding="utf-8") as f:
+            json.dump({"ts": datetime.now(timezone.utc).isoformat()}, f)
+        output_volume.commit()
+        genera_guida.spawn(brief, job_id, None, False)
+        return {"ok": True, "gia_completo": False}
+
     @api.get("/jobs/{job_id}")
     def job_status(job_id: str):
         """Stato e avanzamento del job, letti dagli artefatti sulla Volume."""
@@ -306,8 +337,20 @@ def web():
         # la fase diventa 'interrotta' con un messaggio comprensibile, così la
         # UI non resta a girare a vuoto per ore.
         errore = os.path.exists(os.path.join(d, "ERRORE.txt"))
+        anteprima_pronta = os.path.exists(os.path.join(d, "anteprima.md"))
+        # Completamento autorizzato dal pagamento: il libro intero è in scrittura.
+        completamento = os.path.exists(os.path.join(d, "completamento.json"))
+
+        # Lo stallo NON va calcolato su un assaggio in attesa di pagamento: lì il
+        # silenzio è normale (il motore ha finito il suo compito), e senza questa
+        # guardia dopo 25 minuti l'assaggio si trasformerebbe in "interrotta".
         stallo = False
-        if not completa and arresto is None and not errore:
+        if (
+            not completa
+            and arresto is None
+            and not errore
+            and not (anteprima_pronta and not completamento)
+        ):
             ultimo = None
             ts = (_leggi_json(os.path.join(d, "battito.json")) or {}).get("ts")
             if ts:
@@ -323,11 +366,9 @@ def web():
             if ultimo is not None:
                 stallo = (datetime.now(timezone.utc) - ultimo).total_seconds() > 25 * 60
 
-        anteprima_pronta = os.path.exists(os.path.join(d, "anteprima.md"))
-
         if completa:
             fase = "completa"
-        elif anteprima_pronta and arresto is None and not errore:
+        elif anteprima_pronta and not completamento and arresto is None and not errore:
             # Fermata voluta: l'assaggio è leggibile, il resto si sblocca pagando.
             fase = "anteprima"
         elif arresto is not None:
