@@ -26,6 +26,7 @@ chiave che paga le generazioni.
 | Token CLI (Token ID + Token Secret) | solo sulla macchina da cui si fa il deploy (Cloud Shell) | serve a `modal token set`, non all'app |
 | Secret `anthropic-secret` → `ANTHROPIC_API_KEY` | dashboard Modal | la chiave Anthropic |
 | Secret `anthropic-secret` → `GATE_SECRET` | dashboard Modal | il segreto della porta |
+| Secret `anthropic-secret` → `SITO_BASE_URL` | dashboard Modal | dove il motore bussa a ogni cambio di fase (per le email). Senza, le notifiche restano spente |
 
 ⚠️ **Modificare un secret non basta**: i container caldi tengono il vecchio
 valore. Dopo ogni modifica serve `modal deploy modal_app.py`.
