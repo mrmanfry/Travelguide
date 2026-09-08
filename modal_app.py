@@ -30,6 +30,36 @@ app = modal.App("travelguide")
 OUTPUT_ROOT = "/data/output"
 
 
+def _avvisa_sito(job_id: str, fase: str) -> None:
+    """Dice al sito che un lavoro ha cambiato fase, così può mandare l'email.
+
+    Senza questo, un cambio di fase lo nota solo il browser mentre fa polling —
+    cioè proprio nel caso in cui l'email NON serve. Il motore è l'unico che sa
+    davvero quando l'assaggio è pronto o il libro è finito, quindi è lui a
+    bussare. Un avviso fallito non deve mai far fallire la generazione: si
+    registra e si tira dritto.
+    """
+    import json
+    import os
+    import sys
+    import urllib.request
+
+    base = (os.environ.get("SITO_BASE_URL") or "").strip().rstrip("/")
+    segreto = (os.environ.get("GATE_SECRET") or "").strip()
+    if not base or not segreto:
+        return
+    try:
+        richiesta = urllib.request.Request(
+            f"{base}/api/public/motore-evento",
+            data=json.dumps({"job_id": job_id, "fase": fase}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Gate-Secret": segreto},
+            method="POST",
+        )
+        urllib.request.urlopen(richiesta, timeout=20).read()
+    except Exception as exc:
+        print(f"avviso al sito non riuscito ({fase}): {exc}", file=sys.stderr)
+
+
 def prezzo_eur(capitoli: int) -> int:
     """Prezzo del libro in base alla sua dimensione (numero di capitoli).
 
@@ -150,8 +180,12 @@ def genera_guida(
         with open(os.path.join(dir_job, "ERRORE.txt"), "w", encoding="utf-8") as f:
             f.write(f"{type(exc).__name__}: {exc}\n")
         output_volume.commit()
+        _avvisa_sito(job_id, "interrotta")
         raise
     output_volume.commit()
+
+    # 0 = libro completo, 2 = assaggio pronto, 1 = fermata (tetto, gate, riassunto).
+    _avvisa_sito(job_id, {0: "completa", 2: "anteprima"}.get(rc, "interrotta"))
     return rc
 
 
