@@ -647,11 +647,39 @@ def web():
         con le loro sezioni.
         """
         output_volume.reload()
-        path = os.path.join(_job_dir(job_id), "libro.json")
-        if not os.path.exists(path):
-            raise HTTPException(status_code=404, detail="libro.json non ancora disponibile.")
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
+        d = _job_dir(job_id)
+        path = os.path.join(d, "libro.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+
+        # Il file non c'è: lo si ricostruisce dai capitoli, che ci sono. Vale per
+        # i libri finiti prima che questo formato esistesse — sarebbero rimasti
+        # illeggibili per sempre, con la pagina che dice "il libro non è ancora
+        # pronto" davanti a tredici capitoli scritti e pagati. Si costruisce in
+        # memoria e non si scrive: la Volume può essere in mano a una scrittura
+        # in corso, e leggere un libro non deve mai disturbarla.
+        brief_dict = _leggi_json(os.path.join(d, "brief.json"))
+        stato = _leggi_json(os.path.join(d, "stato.json"))
+        if not brief_dict or not stato:
+            raise HTTPException(status_code=404, detail="Nessun libro da leggere.")
+        try:
+            from schema.brief import Brief
+            from src.guide_runner import costruisci_libro
+            from src.outline import carica_outline
+
+            brief_dict = dict(brief_dict)
+            brief_dict["brief_id"] = job_id
+            brief = Brief.model_validate(brief_dict)
+            assignments = carica_outline(brief)
+            if not assignments:
+                raise HTTPException(status_code=404, detail="Nessun libro da leggere.")
+            return costruisci_libro(brief, assignments, stato)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            print(f"Job {job_id}: libro.json non ricostruibile: {exc}", file=sys.stderr)
+            raise HTTPException(status_code=404, detail="Nessun libro da leggere.")
 
     @api.get("/jobs/{job_id}/parziale.md")
     def scarica_parziale(job_id: str):

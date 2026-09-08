@@ -153,6 +153,41 @@ def _senza_titolo(corpo: str) -> str:
     return "\n".join(righe).strip()
 
 
+def costruisci_libro(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> dict:
+    """Il libro con la sua struttura, ricavato dai capitoli sul disco.
+
+    Sta separato dalla scrittura del file perché è ricostruibile in qualunque
+    momento dai capitoli: i libri finiti prima che questo formato esistesse non
+    devono restare illeggibili per sempre solo perché il file non c'era.
+    """
+    capitoli_stato = stato.get("capitoli", {})
+    voci = []
+    for a in assignments:
+        e = capitoli_stato.get(str(a.numero), {})
+        if e.get("stato") not in ("approvato", "da_rivedere"):
+            continue
+        cap_path, _ = chapter_paths(brief, a)
+        if not cap_path.exists():
+            continue
+        corpo = _corpo_senza_meta(cap_path.read_text(encoding="utf-8"))
+        voci.append(
+            {
+                "numero": a.numero,
+                "titolo": _titolo_capitolo(corpo, a.titolo_provvisorio),
+                "tipo": a.tipo,
+                "sezioni": [s.strip() for s in SEZIONE_RE.findall(corpo)],
+                "corpo_md": _senza_titolo(corpo),
+            }
+        )
+    return {
+        "brief_id": brief.brief_id,
+        "capitoli_totali": len(assignments),
+        "capitoli": voci,
+    }
+
+
 def scrivi_libro_json(
     brief: Brief, assignments: list[ChapterAssignment], stato: dict
 ) -> Path:
@@ -169,36 +204,10 @@ def scrivi_libro_json(
     titolo (che chi legge renderà a modo suo). I capitoli non ancora scritti non
     compaiono: c'è quello che c'è.
     """
-    capitoli_stato = stato.get("capitoli", {})
-    voci = []
-    for a in assignments:
-        e = capitoli_stato.get(str(a.numero), {})
-        if e.get("stato") not in ("approvato", "da_rivedere"):
-            continue
-        cap_path, _ = chapter_paths(brief, a)
-        if not cap_path.exists():
-            continue
-        testo = cap_path.read_text(encoding="utf-8")
-        corpo = _corpo_senza_meta(testo)
-        voci.append(
-            {
-                "numero": a.numero,
-                "titolo": _titolo_capitolo(corpo, a.titolo_provvisorio),
-                "tipo": a.tipo,
-                "sezioni": [s.strip() for s in SEZIONE_RE.findall(corpo)],
-                "corpo_md": _senza_titolo(corpo),
-            }
-        )
     path = _guide_dir(brief) / "libro.json"
     path.write_text(
         json.dumps(
-            {
-                "brief_id": brief.brief_id,
-                "capitoli_totali": len(assignments),
-                "capitoli": voci,
-            },
-            ensure_ascii=False,
-            indent=2,
+            costruisci_libro(brief, assignments, stato), ensure_ascii=False, indent=2
         ),
         encoding="utf-8",
     )
