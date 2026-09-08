@@ -74,9 +74,12 @@ FIXER_ENABLED = False
 ANTEPRIMA_FINO_A_TAPPA = False
 MAX_SEARCHES_PER_CHAPTER = 30
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
-# apparati) non raccomandano 5-6 nomi propri e non devono verificarne altrettanti:
-# un tetto di ricerche più basso evita che un capitolo-ponte bruci ricerche.
-MAX_SEARCHES_NON_TAPPA = 8
+# apparati) non raccomandano 5-6 nomi propri, quindi hanno un tetto più basso di
+# quelli di tappa. Ma non troppo: un capitolo di collegamento in Giappone
+# (Tokyo→Hakone) deve verificare treno, pass, cambi e orari, e con 8 ricerche
+# finiva il budget a metà lasciando 'verifica_incompleta'. 15 è il minimo che
+# regge un trasferimento complesso senza avvicinarsi al tetto di tappa (30).
+MAX_SEARCHES_NON_TAPPA = 15
 MAX_SEARCHES_CRITIC = 15
 # La seconda passata di critica ha un mandato ristretto (solo le correzioni del
 # fixer e i punti già segnalati), quindi un budget di ricerche molto più piccolo:
