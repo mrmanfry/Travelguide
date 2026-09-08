@@ -22,6 +22,7 @@ from pathlib import Path
 from schema.brief import Brief, ChapterAssignment
 from src import config
 from src.chapter_runner import ENGINE_ROOT, META_RE, chapter_paths
+from src.coerenza import coerenza_path, scrivi_coerenza, verifica_coerenza
 from src.costs import costruisci_costi
 from src.outline import carica_o_genera_outline
 from src.run_chapter import esegui_capitolo
@@ -296,6 +297,15 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
     a ogni capitolo — senza che il motore conosca l'host. Le sue eccezioni sono
     ignorate: un problema di pubblicazione non deve far cadere la generazione.
     """
+    # Guardia sul brief, prima di spendere: solo alla prima passata (se
+    # coerenza.json esiste già, questa guida è una ripresa o un completamento e
+    # il controllo è stato fatto). Non blocca nulla: scrive gli avvisi e prosegue.
+    costo_coerenza = 0.0
+    if not coerenza_path(brief).exists():
+        esito = verifica_coerenza(brief)
+        scrivi_coerenza(brief, esito)
+        costo_coerenza = float(esito.get("costo_usd") or 0.0)
+
     assignments, generato, costo_outline = carica_o_genera_outline(brief)
     print(
         f"Outline: {len(assignments)} capitoli "
@@ -303,6 +313,8 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
     )
 
     stato = carica_stato(brief, assignments)
+    if costo_coerenza:
+        stato["costo_coerenza"] = costo_coerenza
 
     def _persist() -> None:
         salva_stato(brief, stato)
@@ -318,7 +330,9 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
 
     capitoli = stato["capitoli"]
     riassunti: list[str] = []
-    costo_cumulato = float(stato.get("costo_outline") or 0.0)
+    costo_cumulato = float(stato.get("costo_outline") or 0.0) + float(
+        stato.get("costo_coerenza") or 0.0
+    )
 
     for a in assignments:
         n = str(a.numero)

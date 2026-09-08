@@ -360,8 +360,10 @@ def web():
             for n, e in sorted(caps_raw.items(), key=lambda kv: int(kv[0]))
         ]
         consegnati = sum(1 for c in capitoli if c["stato"] in ("approvato", "da_rivedere"))
-        costo = sum((c["costo_usd"] or 0.0) for c in capitoli) + float(
-            stato.get("costo_outline") or 0.0
+        costo = (
+            sum((c["costo_usd"] or 0.0) for c in capitoli)
+            + float(stato.get("costo_outline") or 0.0)
+            + float(stato.get("costo_coerenza") or 0.0)
         )
 
         completa = os.path.exists(os.path.join(d, "guida.md"))
@@ -422,9 +424,24 @@ def web():
         else:
             fase = "in_corso"
 
+        # Quanto aspettare prima di richiedere questo stato. Un capitolo si
+        # scrive in dieci-venti minuti: chiedere ogni cinque secondi non mostra
+        # nulla di nuovo, tiene sveglio un container e consuma il credito Modal
+        # più della scrittura stessa. Zero significa: hai finito, smetti.
+        attesa = {
+            "in_coda": 5,
+            "in_corso": 20,
+            "anteprima": 0,
+            "completa": 0,
+            "interrotta": 0,
+        }.get(fase, 20)
+
         risposta = {
             "job_id": job_id,
             "fase": fase,
+            # Il client deve rispettare questo intervallo (secondi) prima della
+            # prossima chiamata; 0 = stato finale, non richiamare più.
+            "attesa_s": attesa,
             "capitoli": capitoli,
             "totali": {
                 "consegnati": consegnati,
@@ -438,6 +455,23 @@ def web():
                 "prezzo_eur": prezzo_eur(len(capitoli)),
             },
         }
+        # Avvisi sul brief (contraddizioni interne, residui di un altro viaggio).
+        # Vanno mostrati sulla pagina dell'assaggio, dove si decide se pagare:
+        # è lì che serve poter dire "abbiamo notato che...", non dopo.
+        coerenza = _leggi_json(os.path.join(d, "coerenza.json")) or {}
+        avvisi = [
+            {
+                "campo": a.get("campo"),
+                "gravita": a.get("gravita"),
+                "problema": a.get("problema"),
+                "domanda": a.get("domanda"),
+            }
+            for a in (coerenza.get("avvisi") or [])
+            if isinstance(a, dict)
+        ]
+        if avvisi:
+            risposta["avvisi_brief"] = avvisi
+
         if completa:
             risposta["download"] = {
                 "guida": f"/jobs/{job_id}/guida.md",

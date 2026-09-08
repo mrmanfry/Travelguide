@@ -44,6 +44,12 @@ MAX_TOKENS_INTERVISTA = 4000
 # docs Anthropic: Haiku 4.5 = "claude-haiku-4-5".
 MODEL_META_SALVAGE = "claude-haiku-4-5"
 MAX_TOKENS_META_SALVAGE = 2000
+# Controllo di coerenza del brief, prima di spendere: cerca contraddizioni
+# interne e residui di un altro viaggio (un campo del form rimasto pieno). È
+# lettura critica di una scheda, non ricerca né scrittura: sta sul modello più
+# economico e costa millesimi contro i venti dollari del libro.
+MODEL_COERENZA = "claude-haiku-4-5"
+MAX_TOKENS_COERENZA = 1500
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
