@@ -382,15 +382,18 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
             }
         )
 
-        # FAIL-FAST 1 (checkpoint cap 1) + 2 (qualsiasi capitolo non consegnabile
-        # dopo il fixer): interrompi, non generare i successivi.
+        # FAIL-FAST 1 (checkpoint cap 1) + 2 (capitolo senza riassunto da
+        # passare al successivo): interrompi, non generare i successivi. I
+        # difetti di forma non arrivano più qui: sono consegnati e finiscono in
+        # da_rivedere.md.
         if not res["consegnabile"]:
             e["stato"] = "fallito"
             _persist()
             prefisso = (
                 "CHECKPOINT capitolo 1 non superato — "
                 if a.numero == 1
-                else f"Capitolo {a.numero} non consegnabile dopo il fixer — "
+                else f"Capitolo {a.numero} senza riassunto per il capitolo "
+                f"successivo — "
             )
             scrivi_arresto(
                 brief,

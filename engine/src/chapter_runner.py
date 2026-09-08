@@ -561,10 +561,12 @@ def generate_chapter(
             if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
                 valido = True
                 break
-            # Recupero del META: se l'UNICO problema è il blocco META mancante e il
-            # resto è valido (titolo, banda, box), prima si tenta il salvataggio con
-            # un modello economico, e solo se anche quello fallisce si rigenera.
-            if c["lunghezza_ok"] and c["immobili_ok"] and not c["meta_ok"]:
+            # Recupero del META, tentato ogni volta che manca — non più solo
+            # quando è l'unico problema. Il META è l'unica cosa che può fermare
+            # il libro (senza, il capitolo dopo non eredita il riassunto e la
+            # catena si spezza), quindi la scialuppa va calata sempre: costa
+            # una chiamata a Haiku contro una rigenerazione su Opus.
+            if not c["meta_ok"]:
                 meta_rec = salvage_meta(brief, assignment, testo)
                 if meta_rec is not None:
                     blocco = (
@@ -574,13 +576,14 @@ def generate_chapter(
                     )
                     testo = testo.rstrip() + "\n\n" + blocco
                     c = controlli_struttura(assignment, testo)
-                    if c["meta_ok"] and c["lunghezza_ok"] and c["immobili_ok"]:
-                        valido = True
+                    if c["meta_ok"]:
                         print(
                             f"Capitolo {assignment.numero:02d}: META ricostruito via "
-                            f"{config.MODEL_META_SALVAGE} (capitolo valido, footer mancante).",
+                            f"{config.MODEL_META_SALVAGE}.",
                             file=sys.stderr,
                         )
+                    if c["lunghezza_ok"] and c["immobili_ok"] and c["meta_ok"]:
+                        valido = True
                         break
             if not c["lunghezza_ok"]:
                 verso = "più lungo" if parole < lo else "più corto"
@@ -657,6 +660,12 @@ def generate_chapter(
         "ricerche_esaurite": ricerche >= tetto,
         "verifica_incompleta": verifica_incompleta,
         "valido": valido,
+        # Consegnabile ≠ valido. Un capitolo fuori banda del 3%, o con un box
+        # fuori posto, è un difetto da segnalare al lettore in da_rivedere.md —
+        # non un motivo per fermare un libro già pagato. L'unica cosa che ferma
+        # davvero è l'assenza del META: senza riassunto il capitolo successivo
+        # non eredita nulla e la catena si spezza.
+        "consegnabile": meta is not None,
     }
 
     cap_path.write_text(testo, encoding="utf-8")
@@ -681,14 +690,20 @@ def generate_chapter(
 
     if warnings:
         warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
+        intestazione = (
+            "CAPITOLO CONSEGNATO CON DIFETTI DI FORMA — da rivedere:"
+            if meta is not None
+            else "CAPITOLO NON CONSEGNABILE — manca il riassunto:"
+        )
         warning_path.write_text(
-            "CAPITOLO NON VALIDO — problemi rilevati:\n\n"
+            intestazione
+            + "\n\n"
             + "\n".join(f"- {w}" for w in warnings)
             + "\n",
             encoding="utf-8",
         )
         print(
-            f"ATTENZIONE: capitolo {assignment.numero:02d} non valido, "
+            f"ATTENZIONE: capitolo {assignment.numero:02d}, "
             f"{len(warnings)} problema/i — vedi {warning_path.name}:",
             file=sys.stderr,
         )

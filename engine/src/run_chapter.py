@@ -470,17 +470,19 @@ def esegui_capitolo(brief: Brief, assignment: ChapterAssignment) -> dict:
     cap_path, gen_warnings, gen_info = generate_chapter(brief, assignment)
     print(f"Capitolo: {cap_path}")
 
-    # Il critico non deve MAI vedere un capitolo strutturalmente rotto (niente
-    # titolo, niente META, fuori banda, box sbagliato): se la generazione non ha
-    # prodotto un capitolo valido dopo i tentativi, si fallisce subito, senza
-    # chiamare (e pagare) il critico su un file degenere.
-    if not gen_info.get("valido", True):
+    # L'unica cosa che ferma il libro è il riassunto mancante: senza META il
+    # capitolo successivo non eredita nulla e la catena narrativa si spezza. Un
+    # capitolo fuori banda o con un box fuori posto viene consegnato lo stesso e
+    # marcato 'da_rivedere' — fermare un libro già pagato per quarantuno parole
+    # di troppo costa al lettore infinitamente più di quelle parole.
+    if not gen_info.get("consegnabile", True):
         costo = costruisci_costi(brief, assignment)
         problemi = list(gen_warnings) or [
-            "capitolo strutturalmente non valido dopo i tentativi di generazione"
+            "capitolo senza blocco META dopo i tentativi: nessun riassunto da "
+            "passare al capitolo successivo"
         ]
         print(
-            f"ATTENZIONE: capitolo {assignment.numero:02d} strutturalmente non valido "
+            f"ATTENZIONE: capitolo {assignment.numero:02d} senza riassunto "
             "— critico NON chiamato, capitolo non consegnabile.",
             file=sys.stderr,
         )
