@@ -192,16 +192,10 @@ def assembla_guida(brief: Brief, assignments: list[ChapterAssignment], stato: di
     return guida_path, costi_path
 
 
-def assembla_anteprima(
+def _corpi_consegnati(
     brief: Brief, assignments: list[ChapterAssignment], stato: dict
-) -> Path:
-    """Assembla l'assaggio: i capitoli già consegnati, con un congedo che
-    annuncia il resto del libro.
-
-    Serve a far leggere qualcosa di VERO prima del paywall: non l'indice, non un
-    riassunto, ma i capitoli scritti sulle loro tappe. Scrive anteprima.md.
-    """
-    out_dir = _guide_dir(brief)
+) -> list[str]:
+    """I corpi (senza META) dei capitoli già consegnati, in ordine."""
     capitoli = stato.get("capitoli", {})
     corpi: list[str] = []
     for a in assignments:
@@ -212,6 +206,45 @@ def assembla_anteprima(
         if not cap_path.exists():
             continue
         corpi.append(_corpo_senza_meta(cap_path.read_text(encoding="utf-8")))
+    return corpi
+
+
+def assembla_parziale(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> Path | None:
+    """Assembla parziale.md: i capitoli scritti prima che la guida si fermasse.
+
+    Senza questo, un'interruzione lascia i capitoli scritti sul disco come file
+    sciolti che nessuno può leggere: il lettore ha pagato, il testo esiste, e la
+    pagina gli mostra un pulsante che porta a un 404. Non si chiama guida.md
+    apposta — quel nome significa 'libro finito' a valle, e questo non lo è.
+    """
+    corpi = _corpi_consegnati(brief, assignments, stato)
+    if not corpi:
+        return None
+    mancanti = max(len(assignments) - len(corpi), 0)
+    coda = (
+        "\n\n---\n\n*Il libro si ferma qui: la scrittura si è interrotta prima "
+        f"della fine e mancano {mancanti} capitoli. Quello che avete letto è "
+        "definitivo — quando la scrittura riprende, questi capitoli non vengono "
+        "riscritti.*\n"
+    )
+    path = _guide_dir(brief) / "parziale.md"
+    path.write_text("\n\n---\n\n".join(corpi) + coda, encoding="utf-8")
+    return path
+
+
+def assembla_anteprima(
+    brief: Brief, assignments: list[ChapterAssignment], stato: dict
+) -> Path:
+    """Assembla l'assaggio: i capitoli già consegnati, con un congedo che
+    annuncia il resto del libro.
+
+    Serve a far leggere qualcosa di VERO prima del paywall: non l'indice, non un
+    riassunto, ma i capitoli scritti sulle loro tappe. Scrive anteprima.md.
+    """
+    corpi = _corpi_consegnati(brief, assignments, stato)
+    out_dir = _guide_dir(brief)
 
     restanti = max(len(assignments) - len(corpi), 0)
     coda = (
@@ -328,6 +361,20 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
         stato["costo_outline"] = costo_outline or 0.0
         _persist()
 
+    def _salva_il_salvabile() -> None:
+        """Prima di ogni interruzione: rendi leggibile quello che è già scritto.
+
+        Un'interruzione non deve lasciare il lettore con dei file sciolti sul
+        disco e una pagina che non ha niente da mostrargli.
+        """
+        try:
+            parziale = assembla_parziale(brief, assignments, stato)
+            revisione = scrivi_da_rivedere(brief, assignments, stato)
+            if parziale:
+                print(f"Capitoli già scritti, leggibili: {parziale} | {revisione}")
+        except Exception as exc:  # non deve mai mascherare l'arresto vero
+            print(f"Assemblaggio del parziale non riuscito: {exc}")
+
     capitoli = stato["capitoli"]
     riassunti: list[str] = []
     costo_cumulato = float(stato.get("costo_outline") or 0.0) + float(
@@ -402,6 +449,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
                 costo_cumulato,
                 a.numero,
             )
+            _salva_il_salvabile()
             return 1
 
         # FAIL-FAST 3: riassunto del META rotto → ferma prima del capitolo seguente.
@@ -418,6 +466,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
                 costo_cumulato,
                 a.numero,
             )
+            _salva_il_salvabile()
             return 1
 
         # Capitolo consegnato. Col fixer attivo è "approvato" senz'altro; col fixer
@@ -459,6 +508,7 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
                 costo_cumulato,
                 prossimo,
             )
+            _salva_il_salvabile()
             return 1
 
     # Tutti i capitoli consegnati → assemblaggio + lista di revisione.

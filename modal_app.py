@@ -492,6 +492,13 @@ def web():
                 "guida": f"/jobs/{job_id}/guida.md",
                 "da_rivedere": f"/jobs/{job_id}/da_rivedere.md",
             }
+        elif fase == "interrotta" and os.path.exists(os.path.join(d, "parziale.md")):
+            # Interrotta ma con capitoli scritti: il lettore deve poterli leggere,
+            # non trovare un pulsante che porta a un 404.
+            risposta["download"] = {
+                "parziale": f"/jobs/{job_id}/parziale.md",
+                "da_rivedere": f"/jobs/{job_id}/da_rivedere.md",
+            }
         elif anteprima_pronta:
             risposta["download"] = {"anteprima": f"/jobs/{job_id}/anteprima.md"}
         if arresto is not None:
@@ -509,6 +516,10 @@ def web():
     @api.get("/jobs/{job_id}/anteprima.md")
     def scarica_anteprima(job_id: str):
         return _servi_file(job_id, "anteprima.md")
+
+    @api.get("/jobs/{job_id}/parziale.md")
+    def scarica_parziale(job_id: str):
+        return _servi_file(job_id, "parziale.md")
 
     @api.get("/jobs/{job_id}/guida.md")
     def scarica_guida(job_id: str):
