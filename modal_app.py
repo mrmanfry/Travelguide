@@ -108,9 +108,13 @@ def _prepara_ambiente() -> None:
     image=engine_image,
     volumes={"/data": output_volume},
     secrets=[anthropic_secret],
-    # La guida intera può durare a lungo (generazione + doppia verifica per
-    # capitolo, più eventuali ritentativi): tetto largo per non troncarla.
-    timeout=2 * 60 * 60,
+    # Quanto dura davvero: un capitolo costa 15-20 minuti (venti-quaranta
+    # andate e ritorni col modello, ognuna con le sue ricerche, tutte in fila).
+    # Un libro da 14 capitoli sono quindi 4-5 ore, e il tetto di 2 ore che c'era
+    # prima lo tagliava a metà — puntualmente, verso il settimo capitolo, senza
+    # lasciare traccia se non un input cancellato. Sei ore danno margine anche a
+    # un libro lungo con qualche ritentativo.
+    timeout=6 * 60 * 60,
     cpu=1.0,
     memory=2048,
 )
