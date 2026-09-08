@@ -315,6 +315,40 @@ def web():
 
         return passo_intervista(brief, messaggi, modo, avvisi)
 
+    @api.post("/coerenza")
+    def coerenza(payload: dict, request: Request):
+        """Controlla una scheda PRIMA di scrivere, e ritorna i punti che non tornano.
+
+        body: {"brief": {...}} → {"avvisi": [{campo, gravita, problema, domanda}]}
+
+        Esiste per una ragione di sequenza. Lo stesso controllo gira anche dentro
+        la generazione, ma lì è tardi: quando gli avvisi compaiono, il motore ha
+        già cominciato a scrivere sulla scheda sbagliata. Chiamato qui — dopo il
+        form e l'intervista, prima di /generate — il viaggiatore corregge le date
+        mentre correggere non costa ancora niente.
+
+        Costa millesimi di dollaro e una decina di secondi. Se fallisce, ritorna
+        una lista vuota: non deve mai impedire di partire.
+        """
+        _controlla_porta(request)
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=400, detail="Payload non valido.")
+        dato = payload.get("brief") or {}
+        if not isinstance(dato, dict) or not dato:
+            raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
+
+        from schema.brief import Brief
+        from src.coerenza import verifica_coerenza
+
+        dato = dict(dato)
+        dato.setdefault("brief_id", "controllo")
+        try:
+            brief = Brief.model_validate(dato)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Scheda non valida: {exc}")
+        esito = verifica_coerenza(brief)
+        return {"avvisi": esito.get("avvisi") or []}
+
     @api.post("/generate")
     def generate(brief: dict, request: Request):
         """Avvia una generazione. Ritorna il job_id per il polling.
