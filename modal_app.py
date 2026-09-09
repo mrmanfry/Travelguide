@@ -80,7 +80,26 @@ def prezzo_eur(capitoli: int) -> int:
 # /root/engine (prompt, schema e src inclusi).
 engine_image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install("anthropic>=0.40", "pydantic>=2.7", "fastapi[standard]")
+    # Impaginazione del PDF: WeasyPrint disegna il testo attraverso Pango, che è
+    # una libreria di sistema. E senza i caratteri Noto, un nome giapponese come
+    # 新幹線 esce nel libro come una fila di rettangoli vuoti.
+    .apt_install(
+        "libpango-1.0-0",
+        "libpangoft2-1.0-0",
+        "libharfbuzz0b",
+        "libffi8",
+        "libjpeg62-turbo",
+        "shared-mime-info",
+        "fonts-noto-core",
+        "fonts-noto-cjk",
+    )
+    .pip_install(
+        "anthropic>=0.40",
+        "pydantic>=2.7",
+        "fastapi[standard]",
+        "weasyprint>=66",
+        "markdown>=3.6",
+    )
     .add_local_dir("engine", remote_path="/root/engine")
 )
 
@@ -637,6 +656,55 @@ def web():
     @api.get("/jobs/{job_id}/anteprima.md")
     def scarica_anteprima(job_id: str):
         return _servi_file(job_id, "anteprima.md")
+
+    @api.get("/jobs/{job_id}/libro.pdf")
+    def scarica_pdf(job_id: str):
+        """Il libro impaginato: A5, testatine, capolettera, box, segnalibri.
+
+        Se il PDF non è ancora stato prodotto (libri finiti prima che esistesse,
+        o impaginazione fallita in coda alla scrittura) lo si compone qui, in
+        una cartella temporanea: la Volume può essere in mano a una scrittura in
+        corso e scaricare un libro non deve mai disturbarla.
+        """
+        from fastapi.responses import FileResponse
+
+        output_volume.reload()
+        d = _job_dir(job_id)
+        nome = "Atelier del Viaggio.pdf"
+        path = os.path.join(d, "libro.pdf")
+        if os.path.exists(path):
+            return FileResponse(path, media_type="application/pdf", filename=nome)
+
+        brief_dict = _leggi_json(os.path.join(d, "brief.json"))
+        stato = _leggi_json(os.path.join(d, "stato.json"))
+        if not brief_dict or not stato:
+            raise HTTPException(status_code=404, detail="Nessun libro da impaginare.")
+        try:
+            import tempfile
+            from pathlib import Path
+
+            from schema.brief import Brief
+            from src.guide_runner import costruisci_libro
+            from src.outline import carica_outline
+            from src.pdf import scrivi_pdf
+
+            brief_dict = dict(brief_dict)
+            brief_dict["brief_id"] = job_id
+            brief = Brief.model_validate(brief_dict)
+            assignments = carica_outline(brief)
+            if not assignments:
+                raise HTTPException(status_code=404, detail="Nessun libro da impaginare.")
+            libro = costruisci_libro(brief, assignments, stato)
+            if not libro["capitoli"]:
+                raise HTTPException(status_code=404, detail="Nessun libro da impaginare.")
+            temporaneo = os.path.join(tempfile.mkdtemp(), "libro.pdf")
+            scrivi_pdf(brief, libro, Path(temporaneo))
+            return FileResponse(temporaneo, media_type="application/pdf", filename=nome)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            print(f"Job {job_id}: impaginazione non riuscita: {exc}", file=sys.stderr)
+            raise HTTPException(status_code=404, detail="Nessun libro da impaginare.")
 
     @api.get("/jobs/{job_id}/libro.json")
     def scarica_libro(job_id: str):

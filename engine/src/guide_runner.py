@@ -587,8 +587,19 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
 
     # Tutti i capitoli consegnati → assemblaggio + lista di revisione.
     guida_path, costi_path = assembla_guida(brief, assignments, stato)
+    libro = costruisci_libro(brief, assignments, stato)
     scrivi_libro_json(brief, assignments, stato)
     da_rivedere_path = scrivi_da_rivedere(brief, assignments, stato)
+
+    # Il PDF impaginato: è la copia che il lettore si porta dietro. Se
+    # l'impaginazione fallisce il libro resta comunque consegnato — un problema
+    # di stampa non deve cancellare cinque ore di scrittura.
+    try:
+        from src.pdf import scrivi_pdf
+
+        print(f"PDF: {scrivi_pdf(brief, libro)}")
+    except Exception as exc:
+        print(f"Impaginazione PDF non riuscita: {exc}", file=sys.stderr)
     n_rivedere = sum(
         1 for e in stato["capitoli"].values() if e.get("stato") == "da_rivedere"
     )
