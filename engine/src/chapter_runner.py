@@ -125,7 +125,7 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
         {
             "type": "text",
             "text": style_guide + "\n\n---\n\n" + system_prompt,
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
         {
             "type": "text",
@@ -137,7 +137,7 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
                 + "\n\n"
                 + build_mezzo_block(brief)
             ),
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
     ]
 

@@ -147,26 +147,28 @@ def max_costo_guida_usd() -> float:
     return MAX_COSTO_GUIDA_USD
 
 # Tabella prezzi in USD per 1 milione di token, per modello (listino pubblico
-# Anthropic). `cache_write` è il costo di scrittura in cache con TTL 5 minuti
-# (1.25x l'input), `cache_read` è la lettura da cache (0.10x l'input). Serve a
-# misurare i costi reali della pipeline, non a stimarli a mano.
+# Anthropic). `cache_write` è il costo di scrittura in cache con TTL UN'ORA
+# (2x l'input), che è quello che usiamo: la vita della cache si conta
+# dall'INIZIO della chiamata e il tempo di generazione ci rientra, quindi con i
+# 5 minuti di default il prefisso scadeva perfino dentro un singolo capitolo e
+# si ripagava più volte. `cache_read` è la lettura (0.10x l'input).
 PRICING = {
     "claude-opus-4-8": {
         "input": 5.00,
         "output": 25.00,
-        "cache_write": 6.25,   # 1.25 * input (TTL 5m)
+        "cache_write": 10.00,   # 2 * input (TTL 1h)
         "cache_read": 0.50,    # 0.10 * input
     },
     "claude-sonnet-5": {
         "input": 2.00,
         "output": 10.00,
-        "cache_write": 2.50,   # 1.25 * input (TTL 5m)
+        "cache_write": 4.00,   # 2 * input (TTL 1h)
         "cache_read": 0.20,    # 0.10 * input
     },
     "claude-haiku-4-5": {
         "input": 1.00,
         "output": 5.00,
-        "cache_write": 1.25,   # 1.25 * input (TTL 5m)
+        "cache_write": 2.00,   # 2 * input (TTL 1h)
         "cache_read": 0.10,    # 0.10 * input
     },
 }

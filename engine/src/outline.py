@@ -40,7 +40,7 @@ def _build_outline_system(brief: Brief) -> list[dict]:
     prompt = (PROMPTS_DIR / "outline_system.md").read_text(encoding="utf-8")
     prompt = prompt.replace("{{LINGUA}}", brief.lingua_guida)
     return [
-        {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
         {
             "type": "text",
             "text": (
@@ -51,7 +51,7 @@ def _build_outline_system(brief: Brief) -> list[dict]:
                 + "\n\n"
                 + build_mezzo_block(brief)
             ),
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
     ]
 
