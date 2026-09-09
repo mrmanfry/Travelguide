@@ -30,6 +30,25 @@ app = modal.App("travelguide")
 OUTPUT_ROOT = "/data/output"
 
 
+def _url_evento() -> str:
+    """L'indirizzo a cui bussare quando un lavoro cambia fase.
+
+    Era un percorso cucito nel codice sotto SITO_BASE_URL, ed e' esattamente
+    la trappola in cui siamo caduti: se la porta non abita su quel dominio,
+    l'unico modo di spostarla era un redeploy. Con SITO_EVENTO_URL si punta a
+    un indirizzo qualsiasi — tipico il caso di una funzione Supabase, che vive
+    su https://<ref>.supabase.co/functions/v1/<nome> e non sul dominio del
+    sito — cambiando un secret su Modal.
+    """
+    import os
+
+    esplicito = (os.environ.get("SITO_EVENTO_URL") or "").strip()
+    if esplicito:
+        return esplicito
+    base = (os.environ.get("SITO_BASE_URL") or "").strip().rstrip("/")
+    return f"{base}/api/public/motore-evento" if base else ""
+
+
 def _avvisa_sito(job_id: str, fase: str) -> None:
     """Dice al sito che un lavoro ha cambiato fase, così può mandare l'email.
 
@@ -45,58 +64,117 @@ def _avvisa_sito(job_id: str, fase: str) -> None:
     import urllib.error
     import urllib.request
 
-    base = (os.environ.get("SITO_BASE_URL") or "").strip().rstrip("/")
+    url = _url_evento()
     segreto = (os.environ.get("GATE_SECRET") or "").strip()
-    if not base:
-        print(f"avviso al sito saltato ({fase}): SITO_BASE_URL non impostato", file=sys.stderr)
+    if not url:
+        print(
+            f"avviso al sito saltato ({fase}): ne' SITO_EVENTO_URL ne' SITO_BASE_URL impostati",
+            file=sys.stderr,
+        )
         return
     if not segreto:
         print(f"avviso al sito saltato ({fase}): GATE_SECRET non impostato", file=sys.stderr)
         return
 
-    url = f"{base}/api/public/motore-evento"
+    # Il nostro segreto viaggia sempre in X-Gate-Secret. Authorization e'
+    # ambiguo: se davanti c'e' il gateway di Supabase, quell'header lo legge lui
+    # e si aspetta la chiave anon, non il nostro segreto — glielo diamo solo se
+    # ce l'hanno detto (SITO_EVENTO_APIKEY). Altrimenti resta il ripiego per le
+    # piattaforme che filtrano gli header non standard.
+    apikey = (os.environ.get("SITO_EVENTO_APIKEY") or "").strip()
+    headers = {
+        "Content-Type": "application/json",
+        "X-Gate-Secret": segreto,
+        # Senza uno User-Agent da browser molte protezioni di frontiera
+        # rispondono 403 a "Python-urllib" senza mai passare la richiesta
+        # all'app.
+        "User-Agent": "AtelierDelViaggio-Motore/1.0",
+        "Accept": "application/json",
+    }
+    if apikey:
+        headers["apikey"] = apikey
+        headers["Authorization"] = f"Bearer {apikey}"
+    else:
+        headers["Authorization"] = f"Bearer {segreto}"
+
     richiesta = urllib.request.Request(
         url,
         data=json.dumps({"job_id": job_id, "fase": fase}).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "X-Gate-Secret": segreto,
-            # Anche in Authorization: alcune piattaforme filtrano gli header
-            # non standard prima che la richiesta arrivi all'applicazione.
-            "Authorization": f"Bearer {segreto}",
-            # Senza uno User-Agent da browser molte protezioni di frontiera
-            # rispondono 403 a "Python-urllib" senza mai passare la richiesta
-            # all'app: e' una delle due spiegazioni possibili del 403 che
-            # vediamo, e distinguerle e' tutto il punto della diagnostica qui
-            # sotto.
-            "User-Agent": "AtelierDelViaggio-Motore/1.0",
-            "Accept": "application/json",
-        },
+        headers=headers,
         method="POST",
     )
     try:
         risposta = urllib.request.urlopen(richiesta, timeout=20)
         print(f"avviso al sito ({fase}): {risposta.status}")
     except urllib.error.HTTPError as exc:
-        # IL CORPO DELLA RISPOSTA E' LA DIAGNOSI. Se e' JSON con un messaggio
-        # nostro, il rifiuto arriva dall'applicazione e il problema e' il
-        # segreto. Se e' una pagina HTML, la richiesta non ha mai raggiunto
-        # l'applicazione: l'ha fermata la piattaforma, e il segreto non c'entra.
         try:
             corpo = exc.read().decode("utf-8", "replace")[:400]
         except Exception:
             corpo = "(corpo non leggibile)"
-        sembra_html = corpo.lstrip()[:1].lower() == "<" or "<html" in corpo.lower()
         print(
             f"avviso al sito RIFIUTATO ({fase}): HTTP {exc.code} da {url}\n"
-            f"  chi ha rifiutato: {'la piattaforma, non la nostra app (risposta HTML)' if sembra_html else 'la nostra app (risposta non HTML)'}\n"
             f"  server: {exc.headers.get('server', '?')}\n"
-            f"  segreto inviato: {len(segreto)} caratteri\n"
+            f"  content-type: {exc.headers.get('content-type', '?')}\n"
+            f"  segreto inviato: {len(segreto)} caratteri"
+            f"{' + apikey ' + str(len(apikey)) + ' caratteri' if apikey else ''}\n"
             f"  corpo: {corpo}",
             file=sys.stderr,
         )
+        _controprova(url, exc.code, corpo)
     except Exception as exc:
         print(f"avviso al sito non riuscito ({fase}): {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
+def _controprova(url: str, codice: int, corpo: str) -> None:
+    """Dice se la porta esiste, bussando a una che di sicuro non esiste.
+
+    Distinguere «l'app ci ha respinti» da «la richiesta non e' mai arrivata
+    all'app» guardando solo la risposta e' indovinare: un 403 con scritto
+    "Forbidden" lo produce sia un controllo del segreto scritto male sia una
+    piattaforma che non ha nessun gestore per quel percorso. La differenza si
+    misura, e costa una richiesta sola: si bussa a un indirizzo inventato,
+    senza segreto. Se risponde IDENTICO, non stiamo parlando con la nostra
+    app — su quel dominio non c'e' nessuna porta, e il segreto e' innocente.
+    """
+    import sys
+    import urllib.error
+    import urllib.request
+
+    finto = url.rsplit("/", 1)[0] + "/questa-porta-non-esiste-mai"
+    try:
+        r = urllib.request.urlopen(
+            urllib.request.Request(
+                finto,
+                data=b"{}",
+                headers={"Content-Type": "application/json", "User-Agent": "AtelierDelViaggio-Motore/1.0"},
+                method="POST",
+            ),
+            timeout=20,
+        )
+        codice_finto, corpo_finto = r.status, r.read().decode("utf-8", "replace")[:200]
+    except urllib.error.HTTPError as exc:
+        codice_finto = exc.code
+        try:
+            corpo_finto = exc.read().decode("utf-8", "replace")[:200]
+        except Exception:
+            corpo_finto = ""
+    except Exception as exc:
+        print(f"  controprova non eseguita: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return
+
+    uguale = codice_finto == codice and corpo_finto.strip()[:200] == corpo.strip()[:200]
+    print(
+        f"  controprova su un indirizzo inventato: HTTP {codice_finto} {corpo_finto!r}\n"
+        f"  verdetto: "
+        + (
+            "IDENTICA alla nostra — la porta non esiste su questo dominio, "
+            "la richiesta non raggiunge mai l'app e il segreto non c'entra"
+            if uguale
+            else "DIVERSA dalla nostra — la porta esiste e ci ha respinti davvero: "
+            "il problema e' il segreto o il modo in cui lo leggiamo"
+        ),
+        file=sys.stderr,
+    )
 
 
 def prezzo_eur(capitoli: int) -> int:
@@ -399,11 +477,10 @@ def web():
         dati = payload if isinstance(payload, dict) else {}
         job_id = str(dati.get("job_id") or "prova")
         fase = str(dati.get("fase") or "anteprima")
-        base = (os.environ.get("SITO_BASE_URL") or "").strip()
         _avvisa_sito(job_id, fase)
         return {
             "ok": True,
-            "inviato_a": f"{base.rstrip('/')}/api/public/motore-evento" if base else None,
+            "inviato_a": _url_evento() or None,
             "fase": fase,
             "nota": "L'esito e' nei log di Modal: cerca 'avviso al sito'.",
         }
