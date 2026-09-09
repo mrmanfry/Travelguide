@@ -97,10 +97,16 @@ def _trasforma_box(frammento: str) -> str:
         resto = re.sub(r"^\s*</p>", "", resto, count=1).strip()
         if resto and not resto.lstrip().startswith("<"):
             resto = f"<p>{resto}"
-        pezzi = [f'<aside class="{_classe_box(etichetta)}">']
+        # Etichetta e titolo in un blocco a sé: è quel blocco a portare il
+        # divieto di restare solo in fondo a una pagina. Metterlo sui singoli
+        # elementi non bastava — l'etichetta di ATTENZIONE è inline-block, per
+        # poter avere il fondo pieno, e su un elemento inline la regola non si
+        # applica affatto: infatti era rimasta sola dentro un box vuoto.
+        pezzi = [f'<aside class="{_classe_box(etichetta)}">', '<div class="cappello">']
         pezzi.append(f'<p class="etichetta">{html.escape(etichetta)}</p>')
         if titolo:
             pezzi.append(f'<p class="titolo">{html.escape(titolo)}</p>')
+        pezzi.append("</div>")
         pezzi.append(resto)
         pezzi.append("</aside>")
         return "".join(pezzi)

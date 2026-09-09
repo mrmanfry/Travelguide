@@ -219,16 +219,33 @@ h2.sezione .romano::after {
    Archivo maiuscoletto. L'identità la porta l'etichetta, non il colore — sei
    colori diversi farebbero volantino, non libro. Due sole eccezioni, sotto. */
 .box {
-  break-inside: avoid;
+  /* I box possono continuare sulla pagina dopo. Vietarlo del tutto costringeva
+     a spingere in avanti box lunghi, lasciando mezze pagine bianche: la carta
+     bianca in fondo a una pagina si nota molto più di un box che continua.
+     Il fondo e il filetto proseguono sul frammento nuovo (box-decoration-break
+     'slice'), che è il modo in cui un libro dice «non è finito». */
+  break-inside: auto;
+  box-decoration-break: slice;
   background: var(--fondo-box);
   border-left: 1.6pt solid var(--terracotta);
   padding: 4.5mm 5mm 4.5mm 5mm;
-  margin: 6mm 0;
+  margin: 5mm 0;
   font-size: 9.6pt; line-height: 1.42;
   text-align: left; hyphens: none;
 }
-.box p { text-indent: 0; margin: 0 0 2mm; }
+.box p { text-indent: 0; margin: 0 0 2mm; orphans: 2; widows: 2; }
 .box p:last-child { margin-bottom: 0; }
+.box .cappello {
+  /* Etichetta e titolo stanno insieme e non si staccano dal testo che segue,
+     che a sua volta non lascia meno di tre righe: un box non comincia mai in
+     fondo a una pagina mostrando la sola etichetta. Il cappello NON comprende
+     il primo capoverso, altrimenti un box fatto di un capoverso solo — il caso
+     normale — tornerebbe indivisibile. */
+  break-inside: avoid;
+  break-after: avoid;
+  margin-bottom: 2.5mm;   /* l'aria fra il titolo e il testo, che il blocco
+                             altrimenti si mangia col margine del titolo */
+}
 .box .etichetta {
   font-family: "Archivo libro", sans-serif;
   font-size: 6.8pt; font-weight: 600;
@@ -238,10 +255,10 @@ h2.sezione .romano::after {
 }
 .box .titolo {
   font-weight: 600; color: var(--inchiostro);
-  font-size: 10.4pt; margin: 0 0 2.5mm; line-height: 1.25;
+  font-size: 10.4pt; margin: 0; line-height: 1.25;
 }
 .box ul { margin: 0; padding-left: 4.5mm; }
-.box li { margin: 0 0 1.5mm; }
+.box li { margin: 0 0 1.5mm; orphans: 2; widows: 2; break-inside: avoid; }
 
 /* ATTENZIONE — è l'unico box che dice "fermati". L'etichetta si rovescia in
    bianco su terracotta: si vede sfogliando, senza aggiungere un colore nuovo. */
@@ -255,6 +272,11 @@ h2.sezione .romano::after {
    decidono al posto del lettore. Perciò non ha il filetto della famiglia: ha
    una cornice intera, come una tabella, e vive in fondo al capitolo. */
 .box--immobili {
+  /* Il registro si legge in blocco: resta intero finché ci sta in una pagina.
+     Se è più lungo di una pagina si spezza lo stesso — 'avoid' è una preferenza,
+     non un divieto — e la cornice resta aperta sul taglio, come in ogni tabella
+     che continua. */
+  break-inside: avoid;
   background: transparent;
   border: 0.5pt solid var(--filetto);
   border-left: 0.5pt solid var(--filetto);
