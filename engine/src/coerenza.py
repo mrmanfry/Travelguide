@@ -46,6 +46,18 @@ Cerchi esattamente questo:
 Come leggere le date: sono nel formato giorno.mese — "21.10" è il 21 ottobre,
 mai le 21:10. Non trattare mai una data come un orario.
 
+Come si contano le notti (sbagliare questo conto è l'errore più facile):
+un viaggio dal 10 al 17 ottobre dura OTTO giorni e SETTE notti. Le notti sono
+sempre una in meno dei giorni, perché l'ultimo giorno è quello della partenza e
+non ha una notte. Quindi «la somma delle notti è uno in meno dei giorni» NON è
+una contraddizione: è la normalità, ed è il conto giusto.
+
+E le tappe si incastrano senza sovrapporsi: chi dorme tre notti a Porto dal 10
+occupa il 10, l'11 e il 12, e la mattina del 13 è già alla tappa dopo. Il giorno
+dello spostamento appartiene alla tappa in cui si dorme quella notte, non a
+quella che si lascia. Fai questo conto prima di dichiarare che qualcosa non
+torna: segnalalo solo se la somma delle notti è diversa dai giorni MENO UNO.
+
 NON segnalare, per nessun motivo:
 - Se un programma ti sembra stretto, faticoso o troppo pieno. Quanto ci sta in
   una giornata lo decide chi viaggia, non tu.
