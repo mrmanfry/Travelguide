@@ -42,22 +42,61 @@ def _avvisa_sito(job_id: str, fase: str) -> None:
     import json
     import os
     import sys
+    import urllib.error
     import urllib.request
 
     base = (os.environ.get("SITO_BASE_URL") or "").strip().rstrip("/")
     segreto = (os.environ.get("GATE_SECRET") or "").strip()
-    if not base or not segreto:
+    if not base:
+        print(f"avviso al sito saltato ({fase}): SITO_BASE_URL non impostato", file=sys.stderr)
         return
+    if not segreto:
+        print(f"avviso al sito saltato ({fase}): GATE_SECRET non impostato", file=sys.stderr)
+        return
+
+    url = f"{base}/api/public/motore-evento"
+    richiesta = urllib.request.Request(
+        url,
+        data=json.dumps({"job_id": job_id, "fase": fase}).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-Gate-Secret": segreto,
+            # Anche in Authorization: alcune piattaforme filtrano gli header
+            # non standard prima che la richiesta arrivi all'applicazione.
+            "Authorization": f"Bearer {segreto}",
+            # Senza uno User-Agent da browser molte protezioni di frontiera
+            # rispondono 403 a "Python-urllib" senza mai passare la richiesta
+            # all'app: e' una delle due spiegazioni possibili del 403 che
+            # vediamo, e distinguerle e' tutto il punto della diagnostica qui
+            # sotto.
+            "User-Agent": "AtelierDelViaggio-Motore/1.0",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
     try:
-        richiesta = urllib.request.Request(
-            f"{base}/api/public/motore-evento",
-            data=json.dumps({"job_id": job_id, "fase": fase}).encode("utf-8"),
-            headers={"Content-Type": "application/json", "X-Gate-Secret": segreto},
-            method="POST",
+        risposta = urllib.request.urlopen(richiesta, timeout=20)
+        print(f"avviso al sito ({fase}): {risposta.status}")
+    except urllib.error.HTTPError as exc:
+        # IL CORPO DELLA RISPOSTA E' LA DIAGNOSI. Se e' JSON con un messaggio
+        # nostro, il rifiuto arriva dall'applicazione e il problema e' il
+        # segreto. Se e' una pagina HTML, la richiesta non ha mai raggiunto
+        # l'applicazione: l'ha fermata la piattaforma, e il segreto non c'entra.
+        try:
+            corpo = exc.read().decode("utf-8", "replace")[:400]
+        except Exception:
+            corpo = "(corpo non leggibile)"
+        sembra_html = corpo.lstrip()[:1].lower() == "<" or "<html" in corpo.lower()
+        print(
+            f"avviso al sito RIFIUTATO ({fase}): HTTP {exc.code} da {url}\n"
+            f"  chi ha rifiutato: {'la piattaforma, non la nostra app (risposta HTML)' if sembra_html else 'la nostra app (risposta non HTML)'}\n"
+            f"  server: {exc.headers.get('server', '?')}\n"
+            f"  segreto inviato: {len(segreto)} caratteri\n"
+            f"  corpo: {corpo}",
+            file=sys.stderr,
         )
-        urllib.request.urlopen(richiesta, timeout=20).read()
     except Exception as exc:
-        print(f"avviso al sito non riuscito ({fase}): {exc}", file=sys.stderr)
+        print(f"avviso al sito non riuscito ({fase}): {type(exc).__name__}: {exc}", file=sys.stderr)
 
 
 def prezzo_eur(capitoli: int) -> int:
@@ -344,6 +383,30 @@ def web():
         from src.intervista import passo_intervista
 
         return passo_intervista(brief, messaggi, modo, avvisi)
+
+    @api.post("/prova-avviso")
+    def prova_avviso(request: Request, payload: dict | None = None):
+        """Manda al sito un avviso finto, per provare il ciclo delle email.
+
+        Finora l'unico modo di verificare l'avviso motore→sito era scrivere un
+        capitolo e aspettare: un dollaro e venti minuti per sapere se un header
+        arriva a destinazione. Qui l'avviso parte subito, con la stessa identica
+        funzione usata in produzione, e la diagnosi finisce nei log.
+
+        body opzionale: {"job_id": "...", "fase": "anteprima"|"completa"|"interrotta"}
+        """
+        _controlla_porta(request)
+        dati = payload if isinstance(payload, dict) else {}
+        job_id = str(dati.get("job_id") or "prova")
+        fase = str(dati.get("fase") or "anteprima")
+        base = (os.environ.get("SITO_BASE_URL") or "").strip()
+        _avvisa_sito(job_id, fase)
+        return {
+            "ok": True,
+            "inviato_a": f"{base.rstrip('/')}/api/public/motore-evento" if base else None,
+            "fase": fase,
+            "nota": "L'esito e' nei log di Modal: cerca 'avviso al sito'.",
+        }
 
     @api.post("/coerenza")
     def coerenza(payload: dict, request: Request):
