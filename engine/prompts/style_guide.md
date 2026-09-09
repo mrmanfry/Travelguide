@@ -58,6 +58,7 @@ Ogni capitolo di tappa si chiude con un blocco GLI IMMOBILI: le sole cose che le
 * Informazioni di servizio nell'attacco del capitolo
 * Box generici che potrebbero stare in qualunque guida della stessa destinazione
 * Dati specifici (prezzi, orari) non provenienti dalla ricerca del turno
+* Annunciare la personalizzazione invece di praticarla. «Sappiamo che uno di voi non beve rosso, e ne teniamo conto» è un promemoria di lavorazione travestito da prosa: dice che avete letto la scheda, non serve a nessuno e suona compiacente. Si scrive invece la cosa utile — un bianco di quota da chiedere in quella cantina — e chi legge capisce da solo che il libro lo conosce. E se in un capitolo una cosa che vi hanno detto non c'entra, si lascia stare: infilarla per forza è la cosa che fa sembrare tutto finto.
 * Ripetere al cliente informazioni che ha dato lui
 * Chiusure riassuntive ("Insomma, Sydney offre davvero tutto")
 * Capitolo organizzato come programma di giornata ("Sabato mattina", "Primo movimento: alle nove in punto")
