@@ -26,9 +26,13 @@ def assets_db_path() -> Path:
 # Mix di modelli per ruolo. La scrittura del capitolo resta su Opus, la parte
 # più costosa per intelligenza richiesta; critico e fixer vanno su Sonnet 5,
 # che riverifica fatti e giudica a un costo per token nettamente inferiore.
-MODEL_GENERATION = "claude-opus-4-8"
-MODEL_CRITIC = "claude-sonnet-5"
-MODEL_FIXER = "claude-sonnet-5"
+# Sovrascrivibili da variabile d'ambiente: per provare un modello diverso basta
+# cambiare un secret su Modal e ridiployare, senza toccare il codice. Vale solo
+# per i modelli Anthropic — il motore usa la ricerca web server-side, la cache
+# esplicita a blocchi e il formato usage di questa API.
+MODEL_GENERATION = os.environ.get("GUIDE_MODELLO_SCRITTURA", "claude-opus-4-8")
+MODEL_CRITIC = os.environ.get("GUIDE_MODELLO_CRITICO", "claude-sonnet-5")
+MODEL_FIXER = MODEL_CRITIC
 # L'outline è ragionamento strutturale, senza ricerca: sta su Opus per qualità,
 # ma è una sola chiamata piccola (pochi centesimi).
 MODEL_OUTLINE = "claude-opus-4-8"
@@ -52,6 +56,30 @@ MODEL_COERENZA = "claude-haiku-4-5"
 MAX_TOKENS_COERENZA = 1500
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
+
+# Sforzo (`output_config.effort`): quanto il modello ragiona prima di
+# rispondere, e quindi quanti token di uscita paga. Il valore di sistema, se non
+# si dice niente, è "high" — cioè finora abbiamo pagato il massimo su OGNI
+# chiamata senza averlo deciso. Il ragionamento si paga a prezzo di uscita
+# ($25/M su Opus), ed è la voce più grossa del conto di un libro.
+#
+# La scrittura resta alta: è il prodotto. La verifica scende: controllare che un
+# luogo esista non è un lavoro di ragionamento profondo, ed è la chiamata che
+# nell'ultimo libro ha prodotto 118.000 token di uscita.
+EFFORT_GENERATION = os.environ.get("GUIDE_EFFORT_GENERAZIONE", "high")
+EFFORT_CRITIC = os.environ.get("GUIDE_EFFORT_CRITICO", "low")
+EFFORT_OUTLINE = os.environ.get("GUIDE_EFFORT_OUTLINE", "medium")
+EFFORT_LEGGERO = "low"   # intervista (Sonnet)
+# ATTENZIONE: Haiku 4.5 NON accetta output_config.effort — la chiamata
+# verrebbe rifiutata. Coerenza e recupero del META girano su Haiku e non
+# devono passarlo.
+
+# Su Opus 4.8 il ragionamento è SPENTO se non lo si chiede — ed è quello che
+# facevamo. Non è un risparmio: senza, il modello tende a scrivere il proprio
+# ragionamento dentro la risposta visibile, che poi paghiamo uguale e dobbiamo
+# ripulire (è da lì che arrivano preamboli e «note di lavoro»). Acceso, il
+# ragionamento resta fuori dal testo e la spesa si governa con lo sforzo.
+THINKING_ADATTIVO = {"type": "adaptive"}
 
 MAX_TOKENS_CHAPTER = 16000
 # Tetti generosi per i ruoli di verifica: su Sonnet 5 il thinking adattivo è
@@ -130,10 +158,10 @@ PRICING = {
         "cache_read": 0.50,    # 0.10 * input
     },
     "claude-sonnet-5": {
-        "input": 3.00,
-        "output": 15.00,
-        "cache_write": 3.75,   # 1.25 * input (TTL 5m)
-        "cache_read": 0.30,    # 0.10 * input
+        "input": 2.00,
+        "output": 10.00,
+        "cache_write": 2.50,   # 1.25 * input (TTL 5m)
+        "cache_read": 0.20,    # 0.10 * input
     },
     "claude-haiku-4-5": {
         "input": 1.00,

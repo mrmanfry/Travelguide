@@ -380,16 +380,19 @@ def run_one_generation(
     user_content: str,
     model: str | None = None,
     max_tokens: int | None = None,
+    effort: str | None = None,
 ):
     """Un singolo tentativo di generazione, gestendo i pause_turn della ricerca.
 
     Ritorna (response, usage_log): la risposta finale e la lista degli usage di
     tutte le chiamate (una sola, o più se il turno è stato messo in pausa).
-    `model` e `max_tokens` sono parametrizzati perché lo stesso ciclo serve sia
-    il generatore (Opus) sia il correttore (Sonnet), con modelli diversi.
+    `model`, `max_tokens` ed `effort` sono parametrizzati perché lo stesso ciclo
+    serve sia il generatore (Opus, sforzo alto) sia il critico (Sonnet, sforzo
+    basso: verificare che un luogo esista non è ragionamento profondo).
     """
     model = model or config.MODEL_GENERATION
     max_tokens = max_tokens or config.MAX_TOKENS_CHAPTER
+    effort = effort or config.EFFORT_GENERATION
     user_message = {"role": "user", "content": user_content}
     messages = [user_message]
     usage_log = []
@@ -400,6 +403,8 @@ def run_one_generation(
             system=system,
             tools=tools,
             messages=messages,
+            thinking=config.THINKING_ADATTIVO,
+            output_config={"effort": effort},
         )
         usage_log.append(response.usage.model_dump())
         if response.stop_reason == "pause_turn":
@@ -410,7 +415,9 @@ def run_one_generation(
         return response, usage_log
 
 
-def run_verification_call(client, system, tools, user_content, model, max_tokens):
+def run_verification_call(
+    client, system, tools, user_content, model, max_tokens, effort=None
+):
     """Chiamata di verifica (critico/fixer) con un ritentativo su troncatura.
 
     Come run_one_generation gestisce i pause_turn della ricerca; in più, se il
@@ -422,13 +429,15 @@ def run_verification_call(client, system, tools, user_content, model, max_tokens
     stata troncatura e/o ritentativo.
     """
     response, usage_log = run_one_generation(
-        client, system, tools, user_content, model=model, max_tokens=max_tokens
+        client, system, tools, user_content, model=model, max_tokens=max_tokens,
+        effort=effort or config.EFFORT_CRITIC,
     )
     retried = False
     if response.stop_reason == "max_tokens":
         retried = True
         response, usage_log_2 = run_one_generation(
-            client, system, tools, user_content, model=model, max_tokens=max_tokens * 2
+            client, system, tools, user_content, model=model,
+            max_tokens=max_tokens * 2, effort=effort or config.EFFORT_CRITIC,
         )
         usage_log = usage_log + usage_log_2
     info = {
@@ -473,6 +482,8 @@ def salvage_meta(
     try:
         response = client.messages.create(
             model=config.MODEL_META_SALVAGE,
+            # Nessun output_config qui: Haiku 4.5 non accetta 'effort' e la
+            # chiamata verrebbe rifiutata. Il compito è estrattivo, non serve.
             max_tokens=config.MAX_TOKENS_META_SALVAGE,
             messages=[{"role": "user", "content": user_content}],
         )

@@ -106,6 +106,7 @@ def verifica_coerenza(brief: Brief) -> dict:
         client = make_client()
         response = client.messages.create(
             model=config.MODEL_COERENZA,
+            # Niente 'effort': Haiku 4.5 non lo accetta.
             max_tokens=config.MAX_TOKENS_COERENZA,
             system=[{"type": "text", "text": _SYSTEM}],
             messages=[

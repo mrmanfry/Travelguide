@@ -141,6 +141,7 @@ def _chiama_modello(
     response = client.messages.create(
         model=config.MODEL_INTERVISTA,
         max_tokens=config.MAX_TOKENS_INTERVISTA,
+        output_config={"effort": config.EFFORT_LEGGERO},
         system=_system_prompt(modo),
         messages=_costruisci_messaggi(brief_dict, messaggi, modo, avvisi),
     )
