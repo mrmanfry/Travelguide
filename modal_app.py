@@ -670,10 +670,28 @@ def web():
 
         output_volume.reload()
         d = _job_dir(job_id)
-        nome = "Atelier del Viaggio.pdf"
+
+        # Il nome del file è il titolo del libro: nella cartella Download deve
+        # comparire «Il Giappone in quattro (poi in due).pdf», non il nome della
+        # ditta che l'ha stampato.
+        def _nome(fallback: str = "Il vostro libro.pdf") -> str:
+            try:
+                from src.pdf import nome_file, titolo_libro
+
+                libro_json = _leggi_json(os.path.join(d, "libro.json"))
+                if libro_json:
+                    from schema.brief import Brief
+
+                    b = dict(_leggi_json(os.path.join(d, "brief.json")) or {})
+                    b["brief_id"] = job_id
+                    return nome_file(titolo_libro(Brief.model_validate(b), libro_json))
+            except Exception:
+                pass
+            return fallback
+
         path = os.path.join(d, "libro.pdf")
         if os.path.exists(path):
-            return FileResponse(path, media_type="application/pdf", filename=nome)
+            return FileResponse(path, media_type="application/pdf", filename=_nome())
 
         brief_dict = _leggi_json(os.path.join(d, "brief.json"))
         stato = _leggi_json(os.path.join(d, "stato.json"))
@@ -697,9 +715,15 @@ def web():
             libro = costruisci_libro(brief, assignments, stato)
             if not libro["capitoli"]:
                 raise HTTPException(status_code=404, detail="Nessun libro da impaginare.")
+            from src.pdf import nome_file, titolo_libro
+
             temporaneo = os.path.join(tempfile.mkdtemp(), "libro.pdf")
             scrivi_pdf(brief, libro, Path(temporaneo))
-            return FileResponse(temporaneo, media_type="application/pdf", filename=nome)
+            return FileResponse(
+                temporaneo,
+                media_type="application/pdf",
+                filename=nome_file(titolo_libro(brief, libro)),
+            )
         except HTTPException:
             raise
         except Exception as exc:

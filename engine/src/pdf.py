@@ -254,19 +254,39 @@ def _colophon(brief: Brief) -> str:
 """
 
 
+def titolo_libro(brief: Brief, libro: dict) -> str:
+    """Il titolo del libro.
+
+    È quello del capitolo di introduzione: il generatore lo scrive come promessa
+    del viaggio, ed è già un titolo da copertina («Il Giappone in quattro (poi in
+    due)»). Il nome della prima tappa è un ripiego, non un titolo: «Tokyo» su un
+    libro che attraversa mezzo Giappone sarebbe sbagliato.
+    """
+    capitoli = libro.get("capitoli") or []
+    intro = next((c for c in capitoli if c.get("tipo") == "introduzione"), None) or (
+        capitoli[0] if capitoli else None
+    )
+    if intro and intro.get("titolo"):
+        return intro["titolo"]
+    if brief.tappe:
+        return brief.tappe[0].luogo
+    return "Il vostro viaggio"
+
+
+def nome_file(titolo: str) -> str:
+    """Il titolo trasformato in un nome di file che ogni sistema accetta."""
+    # I caratteri vietati si sostituiscono con uno spazio, non si cancellano:
+    # togliendoli si incollano le parole ("templi/giardini" -> "templigiardini").
+    pulito = re.sub(r'[\\/:*?"<>|]', " ", titolo)
+    pulito = re.sub(r"\s+", " ", pulito).strip().strip(".")
+    return (pulito[:80].strip() or "Il vostro libro") + ".pdf"
+
+
 def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str:
     """Il libro come pagina HTML pronta per l'impaginazione."""
     capitoli = libro.get("capitoli") or []
     if titolo is None:
-        intro = next(
-            (c for c in capitoli if c.get("tipo") == "introduzione"), None
-        ) or (capitoli[0] if capitoli else None)
-        if intro:
-            titolo = intro["titolo"]
-        elif brief.tappe:
-            titolo = brief.tappe[0].luogo
-        else:
-            titolo = "Il vostro viaggio"
+        titolo = titolo_libro(brief, libro)
 
     parti = [_frontespizio(brief, titolo), _indice(capitoli)]
     for c in capitoli:
