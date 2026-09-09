@@ -392,7 +392,7 @@ def run_one_generation(
     """
     model = model or config.MODEL_GENERATION
     max_tokens = max_tokens or config.MAX_TOKENS_CHAPTER
-    effort = effort or config.EFFORT_GENERATION
+    effort = effort or config.effort_generazione()
     user_message = {"role": "user", "content": user_content}
     messages = [user_message]
     usage_log = []
@@ -430,14 +430,14 @@ def run_verification_call(
     """
     response, usage_log = run_one_generation(
         client, system, tools, user_content, model=model, max_tokens=max_tokens,
-        effort=effort or config.EFFORT_CRITIC,
+        effort=effort or config.effort_critico(),
     )
     retried = False
     if response.stop_reason == "max_tokens":
         retried = True
         response, usage_log_2 = run_one_generation(
             client, system, tools, user_content, model=model,
-            max_tokens=max_tokens * 2, effort=effort or config.EFFORT_CRITIC,
+            max_tokens=max_tokens * 2, effort=effort or config.effort_critico(),
         )
         usage_log = usage_log + usage_log_2
     info = {

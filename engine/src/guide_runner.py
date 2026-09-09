@@ -413,6 +413,17 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
     a ogni capitolo — senza che il motore conosca l'host. Le sue eccezioni sono
     ignorate: un problema di pubblicazione non deve far cadere la generazione.
     """
+    # Prima riga di ogni run: con quale configurazione sta girando. Senza
+    # questa, un confronto fra due configurazioni non è verificabile — si
+    # crederebbe di aver misurato 'medium' avendo misurato 'high'.
+    print(
+        f"Configurazione: scrittura {config.MODEL_GENERATION} "
+        f"(sforzo {config.effort_generazione()}) | "
+        f"critico {config.MODEL_CRITIC} (sforzo {config.effort_critico()}) | "
+        f"ricerche {config.MAX_SEARCHES_PER_CHAPTER}/"
+        f"{config.MAX_SEARCHES_NON_TAPPA}/{config.MAX_SEARCHES_CRITIC}"
+    )
+
     # Guardia sul brief, prima di spendere: solo alla prima passata (se
     # coerenza.json esiste già, questa guida è una ripresa o un completamento e
     # il controllo è stato fatto). Non blocca nulla: scrive gli avvisi e prosegue.

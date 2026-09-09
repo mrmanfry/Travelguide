@@ -142,6 +142,7 @@ def genera_guida(
     job_id: str,
     tetto_usd: float | None = None,
     anteprima: bool = False,
+    effort: str | None = None,
 ) -> int:
     """Esegue la guida intera per un brief. Ritorna il codice d'uscita del motore.
 
@@ -163,6 +164,12 @@ def genera_guida(
         os.environ["GUIDE_ENGINE_KEY"] = chiave
     if tetto_usd is not None:
         os.environ["GUIDE_MAX_COSTO_USD"] = str(tetto_usd)
+    # Sforzo del singolo run: serve a confrontare due configurazioni sullo
+    # stesso brief senza ridiployare e senza toccare il secret — cioè senza il
+    # rischio di credere di star provando 'medium' mentre un container caldo
+    # sta ancora girando a 'high'. Il motore lo rilegge a ogni chiamata.
+    if effort:
+        os.environ["GUIDE_EFFORT_GENERAZIONE"] = str(effort)
 
     from schema.brief import Brief
     from src.guide_runner import orchestrazione
@@ -376,15 +383,20 @@ def web():
     def generate(brief: dict, request: Request):
         """Avvia una generazione. Ritorna il job_id per il polling.
 
-        Campo opzionale `_tetto_usd` nel body: budget di spesa del run (per un
-        test di collegamento a basso costo). Viene estratto e non fa parte del
-        brief passato al motore.
+        Campi opzionali nel body, estratti e non passati al motore come parte
+        del brief:
+
+        * `_tetto_usd` — budget di spesa del run (test a basso costo).
+        * `_effort` — sforzo di scrittura per QUESTO run (low|medium|high|
+          xhigh|max). Serve a confrontare due configurazioni sullo stesso brief
+          senza ridiployare.
         """
         _controlla_porta(request)
         if not isinstance(brief, dict) or not brief:
             raise HTTPException(status_code=400, detail="Brief mancante o non valido.")
         brief = dict(brief)
         tetto_usd = brief.pop("_tetto_usd", None)
+        effort = brief.pop("_effort", None)
         brief.pop("_anteprima", None)  # ignorato di proposito, vedi sotto
         job_id = uuid.uuid4().hex[:12]
         # Da questa porta esce SOLO l'assaggio, qualunque cosa venga chiesta.
@@ -392,7 +404,7 @@ def web():
         # il segreto ed è chiamato solo dal webhook del pagamento. Così la via
         # costosa è irraggiungibile per costruzione, e non dipende dal fatto che
         # il codice del sito ricordi di chiedere l'assaggio.
-        genera_guida.spawn(brief, job_id, tetto_usd, True)
+        genera_guida.spawn(brief, job_id, tetto_usd, True, effort)
         return {"job_id": job_id}
 
     @api.post("/jobs/{job_id}/completa")

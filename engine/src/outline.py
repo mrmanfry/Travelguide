@@ -105,7 +105,7 @@ def genera_outline(brief: Brief) -> tuple[list[ChapterAssignment], float | None]
     response = client.messages.create(
         model=config.MODEL_OUTLINE,
         max_tokens=config.MAX_TOKENS_OUTLINE,
-        output_config={"effort": config.EFFORT_OUTLINE},
+        output_config={"effort": config.effort_outline()},
         system=system,
         messages=[
             {

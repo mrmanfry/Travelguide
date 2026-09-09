@@ -66,9 +66,37 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 # La scrittura resta alta: è il prodotto. La verifica scende: controllare che un
 # luogo esista non è un lavoro di ragionamento profondo, ed è la chiamata che
 # nell'ultimo libro ha prodotto 118.000 token di uscita.
-EFFORT_GENERATION = os.environ.get("GUIDE_EFFORT_GENERAZIONE", "high")
-EFFORT_CRITIC = os.environ.get("GUIDE_EFFORT_CRITICO", "low")
-EFFORT_OUTLINE = os.environ.get("GUIDE_EFFORT_OUTLINE", "medium")
+EFFORT_GENERATION_DEFAULT = "high"
+EFFORT_CRITIC_DEFAULT = "low"
+EFFORT_OUTLINE_DEFAULT = "medium"
+
+_EFFORT_AMMESSI = {"low", "medium", "high", "xhigh", "max"}
+
+
+def _effort(nome_var: str, default: str) -> str:
+    """Lo sforzo effettivo, letto dall'ambiente A OGNI CHIAMATA.
+
+    Letto una volta sola all'import, un container già caldo terrebbe il valore
+    vecchio anche dopo aver cambiato il secret: si crederebbe di star provando
+    una configurazione e si starebbe misurando quella di prima. Letto qui, un
+    singolo run può imporre il proprio sforzo senza ridiploy — come già fa il
+    tetto di spesa. Un valore non valido viene ignorato invece di far fallire
+    la generazione: uno sforzo scritto male non deve costare un libro.
+    """
+    val = (os.environ.get(nome_var) or "").strip().lower()
+    return val if val in _EFFORT_AMMESSI else default
+
+
+def effort_generazione() -> str:
+    return _effort("GUIDE_EFFORT_GENERAZIONE", EFFORT_GENERATION_DEFAULT)
+
+
+def effort_critico() -> str:
+    return _effort("GUIDE_EFFORT_CRITICO", EFFORT_CRITIC_DEFAULT)
+
+
+def effort_outline() -> str:
+    return _effort("GUIDE_EFFORT_OUTLINE", EFFORT_OUTLINE_DEFAULT)
 EFFORT_LEGGERO = "low"   # intervista (Sonnet)
 # ATTENZIONE: Haiku 4.5 NON accetta output_config.effort — la chiamata
 # verrebbe rifiutata. Coerenza e recupero del META girano su Haiku e non
