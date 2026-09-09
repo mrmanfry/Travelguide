@@ -31,11 +31,14 @@ Dopo il capitolo, aggiungi un blocco finale delimitato da `<!--META` e `META-->`
 * `riassunto`: 2 righe di riassunto del capitolo, per i capitoli successivi
 * `verifica_incompleta` (opzionale): `true` solo se hai esaurito le ricerche prima di verificare tutti i nomi che intendevi citare; ometti il campo (o `false`) se la verifica è completa
 * `fatti_verificati`: elenco dei fatti verificati via ricerca, con data
-* `claims_da_verificare`: elenco dei claim fattuali specifici presenti nel testo, per il passaggio critico
+* `claims_da_verificare`: SOLO i claim che, se sbagliati, rovinerebbero il viaggio — dove si trova un luogo, se un collegamento esiste e come funziona, i fatti storici e culturali, le cose fisse legate alle date (chiusure settimanali, festività, stagionalità). NON metterci prezzi, tariffe, orari di apertura, durate al minuto o confronti fra biglietti: quelle cifre il lettore le trova sul sito ufficiale il giorno prima, e il testo è già scritto in modo che non servano. Verificarle costa ricerche e non serve a nessuno
 * `assets`: lista di oggetti con `tipo` (storia_luogo | quartiere | esperienza | box), `titolo`, `sezione`, `deperibilita` (evergreen | stagionale | volatile)
 
 Il blocco META alimenta la libreria asset e il critico: compilalo con la stessa cura del testo.
 Box GLI IMMOBILI — regola condizionale, legata al tipo del capitolo. Il box va inserito SE E SOLO SE il tipo del capitolo è `tappa`. È OBBLIGATORIO nei capitoli di tappa e VIETATO in tutti gli altri tipi (`introduzione`, `contesto`, `collegamento`, `congedo`, `apparati`): in quei capitoli non deve comparire né il box né la dicitura «GLI IMMOBILI». Dove è previsto, sono poche righe con le sole cose che le date decidono al posto del viaggiatore: giorni fissi di mercati ed eventi, chiusure settimanali, cose da prenotare prima di partire, vincoli già presenti nella logistica del cliente. Ancorato alle sue date reali, preso dal calendario fornito. È il complemento della libertà: il lettore sa cosa non può spostare e su tutto il resto improvvisa.
+Su cosa spendere le ricerche
+Le ricerche del turno sono poche e servono a garantire che il libro non sbagli le cose che contano: dove si trova un posto, se un collegamento esiste, i fatti storici, le chiusure e le stagioni legate alle date del cliente. NON spenderle per prezzi, tariffe e orari di apertura: quelli cambiano, il lettore li verifica in dieci secondi, e la regola qui sopra ti dice già come scriverne senza inventarli. Un capitolo che finisce le ricerche sui prezzi ha sprecato il budget che gli serviva per i luoghi.
+
 Cosa NON fare mai
 
 * Inventare prezzi, orari, nomi di locali o stati di apertura non verificati nel turno.

@@ -78,15 +78,19 @@ FIXER_ENABLED = False
 # False: ci si ferma al primo capitolo (la sola introduzione), molto più
 # economico ma meno convincente.
 ANTEPRIMA_FINO_A_TAPPA = False
-MAX_SEARCHES_PER_CHAPTER = 30
+# Tetti di ricerca, tarati sul mandato ristretto: si verificano i luoghi, i
+# collegamenti, i fatti storici e le date fisse — non prezzi, tariffe e orari.
+# Ogni ricerca è un'andata e ritorno che rimanda al modello tutta la
+# conversazione cresciuta fino a lì, quindi la ventesima costa il triplo della
+# quinta: tagliare qui è la leva più efficace sul costo di un libro.
+MAX_SEARCHES_PER_CHAPTER = 22
 # I capitoli non di tappa (introduzione, contesto, collegamento, congedo,
-# apparati) non raccomandano 5-6 nomi propri, quindi hanno un tetto più basso di
-# quelli di tappa. Ma non troppo: un capitolo di collegamento in Giappone
-# (Tokyo→Hakone) deve verificare treno, pass, cambi e orari, e con 8 ricerche
-# finiva il budget a metà lasciando 'verifica_incompleta'. 15 è il minimo che
-# regge un trasferimento complesso senza avvicinarsi al tetto di tappa (30).
-MAX_SEARCHES_NON_TAPPA = 15
-MAX_SEARCHES_CRITIC = 15
+# apparati) non raccomandano 5-6 nomi propri: tetto più basso. Con 8 non ci
+# stavano — un collegamento Tokyo→Hakone finiva il budget a metà — ma quelle
+# ricerche se ne andavano in prezzi di pass e orari, che ora non si verificano
+# più. Dodici bastano per quello che conta: che il collegamento esista e come.
+MAX_SEARCHES_NON_TAPPA = 12
+MAX_SEARCHES_CRITIC = 10
 # La seconda passata di critica ha un mandato ristretto (solo le correzioni del
 # fixer e i punti già segnalati), quindi un budget di ricerche molto più piccolo:
 # non deve riverificare l'intero capitolo.
