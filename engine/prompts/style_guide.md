@@ -18,7 +18,7 @@ Figura dell'autore: un accompagnatore esperto e onesto, che ha opinioni e le mot
 3. Struttura del capitolo
 
 * Titolo: nome del luogo (con nome indigeno/locale dove esiste) + sottotitolo evocativo che è una tesi.
-* Sezioni numerate romane (I, II, III…) con titoli tematici brevi. 4-7 sezioni per capitolo di tappa.
+* Sezioni numerate romane (I, II, III…) OGNUNA con il suo titolo tematico breve, sulla stessa riga del numero: «## II. Il fiume che sale». Un numero da solo — «## II.» — non è una sezione, è un segnaposto: il titolo serve a chi sfoglia per ritrovare il punto, e finisce nell'indice del libro stampato. 4-7 sezioni per capitolo di tappa.
 * Sezioni organizzate per luogo o tema, mai per giornata; l'arco resta senso→pratica ma non diventa mai un programma orario.
 * Lunghezza: proporzionale a notti × densità della tappa.
 

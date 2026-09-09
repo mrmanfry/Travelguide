@@ -179,6 +179,23 @@ def truncate_after_meta(testo: str) -> str:
     return testo[: m.end()]
 
 
+SEZIONE_NUDA_RE = re.compile(r"^##\s*[IVXLC]+[.)]?\s*$", re.MULTILINE)
+
+
+def sezioni_senza_titolo(testo: str) -> list[str]:
+    """I titoli di sezione ridotti al solo numero romano («## II.»).
+
+    Non è un vezzo tipografico: quei titoli finiscono nell'indice del libro
+    stampato e nella barra di navigazione del lettore online. Un indice fatto di
+    «I. II. III.» non fa ritrovare niente a nessuno. Non è riparabile in codice
+    — un titolo non si inventa — quindi si segnala e basta, senza far
+    rigenerare il capitolo: costerebbe un dollaro e mezzo per un difetto di
+    forma, che è esattamente lo scambio che abbiamo deciso di non fare.
+    """
+    corpo = testo.split("<!--META", 1)[0]
+    return [m.strip() for m in SEZIONE_NUDA_RE.findall(corpo)]
+
+
 # Il vocabolario dell'officina. Se compare in una riga del capitolo, quella riga
 # non è prosa per il lettore: è il modello che parla a noi.
 _GERGO_INTERNO = (
@@ -702,6 +719,13 @@ def generate_chapter(
     # modello quando esaurisce le ricerche prima di verificare i nomi che
     # intendeva citare. La condizione "ricerche esaurite + claim non verificati"
     # è valutata a valle dal gate, che ha in mano anche l'esito del critico.
+    nude = sezioni_senza_titolo(testo)
+    if nude:
+        warnings.append(
+            f"{len(nude)} sezione/i senza titolo (solo il numero romano): "
+            "nell'indice del libro compaiono come voci vuote."
+        )
+
     meta = parse_meta(testo)
     verifica_incompleta = bool((meta or {}).get("verifica_incompleta"))
     ricerche = total_web_searches(usage_log)
