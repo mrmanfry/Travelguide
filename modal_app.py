@@ -30,6 +30,21 @@ app = modal.App("travelguide")
 OUTPUT_ROOT = "/data/output"
 
 
+def _impronta(v: str) -> str:
+    """Le prime otto cifre dello sha256: dice se due segreti sono lo STESSO.
+
+    La lunghezza non basta — due segreti diversi lunghi uguale sono il caso
+    normale, non l'eccezione. L'impronta si confronta, non si inverte, quindi
+    puo' stare nei log. E' calcolata esattamente come la calcola il sito
+    (sha256 utf-8, primi 8 caratteri esadecimali), cosi' le due righe si
+    leggono affiancate: impronte uguali = stesso segreto, e il problema e'
+    altrove.
+    """
+    import hashlib
+
+    return hashlib.sha256(v.encode("utf-8")).hexdigest()[:8]
+
+
 def _url_evento() -> str:
     """L'indirizzo a cui bussare quando un lavoro cambia fase.
 
@@ -115,7 +130,7 @@ def _avvisa_sito(job_id: str, fase: str) -> None:
             f"avviso al sito RIFIUTATO ({fase}): HTTP {exc.code} da {url}\n"
             f"  server: {exc.headers.get('server', '?')}\n"
             f"  content-type: {exc.headers.get('content-type', '?')}\n"
-            f"  segreto inviato: {len(segreto)} caratteri"
+            f"  segreto inviato: impronta {_impronta(segreto)} / {len(segreto)} caratteri"
             f"{' + apikey ' + str(len(apikey)) + ' caratteri' if apikey else ''}\n"
             f"  corpo: {corpo}",
             file=sys.stderr,
