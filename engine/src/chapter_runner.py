@@ -179,18 +179,64 @@ def truncate_after_meta(testo: str) -> str:
     return testo[: m.end()]
 
 
+# Il vocabolario dell'officina. Se compare in una riga del capitolo, quella riga
+# non è prosa per il lettore: è il modello che parla a noi.
+_GERGO_INTERNO = (
+    "nota di lavoro",
+    "nota per il critico",
+    "nota al revisore",
+    "nota tecnica interna",
+    "fuori dal file consegnato",
+    "blocco meta",
+    "claims_da_verificare",
+    "verifica_incompleta",
+    "passaggio critico",
+    "style guide",
+    "budget parole",
+)
+
+
+def rimuovi_note_di_lavoro(testo: str) -> str:
+    """Toglie dal capitolo le note che il modello scrive a noi, non al lettore.
+
+    Capita che il generatore chiuda con una «Nota di lavoro (fuori dal file
+    consegnato)» in cui racconta cosa non è riuscito a verificare, citando la
+    style guide e i campi del blocco META. Crede di parlare fuori dal file; il
+    file è uno solo, e quella nota è finita stampata nel libro di un cliente.
+
+    Il criterio è il vocabolario: un capitolo di viaggio non nomina mai la style
+    guide né i campi del META. Trovata una riga così, si taglia da lì fino alla
+    fine della prosa — queste note stanno sempre in coda, e quello che le segue
+    è altra roba dello stesso genere. Il blocco META, che è nostro e serve, resta.
+    """
+    corpo, sep, coda = testo.partition("<!--META")
+    righe = corpo.split("\n")
+    for i, riga in enumerate(righe):
+        pulita = riga.strip().strip("*_# ").lower()
+        if not pulita:
+            continue
+        if any(marca in pulita for marca in _GERGO_INTERNO):
+            tagliato = "\n".join(righe[:i]).rstrip() + "\n"
+            return tagliato + (("\n" + sep + coda) if sep else "")
+    # Nessuna nota: il testo torna identico, byte per byte. Ricomporlo comunque
+    # aggiungerebbe un a-capo a ogni lettura.
+    return testo
+
+
 def clean_chapter(grezzo: str) -> tuple[str, bool]:
     """Pulizie deterministiche condivise tra generatore e correttore.
 
-    In ordine: taglia il preambolo prima del titolo, rimuove i tag cite, tronca
-    il postscript dopo `META-->`. Ritorna (testo, titolo_ok): se non c'è alcuna
-    riga di titolo '# ', titolo_ok è False e il grezzo è restituito immutato,
-    perché senza titolo non ha senso applicare le altre pulizie.
+    In ordine: taglia il preambolo prima del titolo, rimuove i tag cite, toglie
+    le note di lavoro rivolte a noi, tronca il postscript dopo `META-->`.
+    Ritorna (testo, titolo_ok): se non c'è alcuna riga di titolo '# ', titolo_ok
+    è False e il grezzo è restituito immutato, perché senza titolo non ha senso
+    applicare le altre pulizie.
     """
     testo, titolo_ok = strip_preamble(grezzo)
     if not titolo_ok:
         return grezzo, False
     testo = strip_cite_tags(testo)
+    testo = rimuovi_note_di_lavoro(testo)
     testo = truncate_after_meta(testo)
     return testo, True
 

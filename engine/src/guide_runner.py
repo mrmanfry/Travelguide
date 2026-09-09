@@ -21,7 +21,12 @@ from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
 from src import config
-from src.chapter_runner import ENGINE_ROOT, META_RE, chapter_paths
+from src.chapter_runner import (
+    ENGINE_ROOT,
+    META_RE,
+    chapter_paths,
+    rimuovi_note_di_lavoro,
+)
 from src.coerenza import coerenza_path, scrivi_coerenza, verifica_coerenza
 from src.costs import costruisci_costi
 from src.outline import carica_o_genera_outline
@@ -136,7 +141,13 @@ def _titolo_capitolo(testo: str, fallback: str) -> str:
 
 
 def _corpo_senza_meta(testo: str) -> str:
-    """Il capitolo senza il blocco META finale, per la guida stampata."""
+    """Il capitolo senza il blocco META finale, per la guida stampata.
+
+    Ripassa anche le note di lavoro: i capitoli scritti prima che il filtro
+    esistesse le portano dentro, e nessuno li rigenera. La pulizia va fatta
+    anche qui, in lettura, o quelle note restano nei libri già pagati.
+    """
+    testo = rimuovi_note_di_lavoro(testo)
     m = META_RE.search(testo)
     corpo = testo[: m.start()] if m else testo
     return corpo.rstrip()

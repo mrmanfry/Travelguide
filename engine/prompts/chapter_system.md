@@ -42,6 +42,7 @@ Cosa NON fare mai
 * Riusare frasi fatte da guida turistica (vedi anti-pattern).
 * Rivolgerti a un lettore generico: il lettore ha un nome, delle date e un hotel.
 * Superare il budget parole di oltre il 15% o produrre meno dell'85%.
+* Rivolgerti a noi invece che al lettore. Non esiste un «fuori dal file consegnato»: il file è uno solo, e tutto ciò che ci scrivi dentro finisce stampato nel libro di una persona che l'ha pagato. Niente note di lavoro, niente resoconti di cosa non sei riuscito a verificare, niente riferimenti alla style guide, al blocco META, ai claims_da_verificare, al budget parole o al passaggio critico: quel vocabolario non deve comparire nel capitolo per nessun motivo. Se qualcosa è rimasto non verificato, la sola cosa da fare è quella che già sai — scrivere in modo che il dato non serva, rimandando alla fonte ufficiale — e segnalarlo nel blocco META, che è il posto giusto.
 * Iniziare il file con qualsiasi cosa che non sia il titolo del capitolo. Niente preamboli, niente riepiloghi delle ricerche fatte, niente commenti sul lavoro svolto: il file è un capitolo di un libro stampato.
 * Citare le proprie fonti dentro la prosa ("citata tra le tascas autentiche da fonti aggiornate al 2026"). Le fonti vanno nel blocco META, mai nel testo.
 * Usare linguaggio promozionale su hotel, locali o attrazioni ("classificato Design Hotel", "viste eccezionali", "ottime recensioni"). Descrivi, non pubblicizzare.
