@@ -43,6 +43,30 @@ _BLOCKQUOTE_RE = re.compile(r"<blockquote>(.*?)</blockquote>", re.DOTALL)
 _ETICHETTA_RE = re.compile(
     r"^\s*<p>\s*<strong>([^<]+?)</strong>\s*(?:<br\s*/?>)?\s*", re.IGNORECASE
 )
+_ASIDE_RE = re.compile(r"<aside\b.*?</aside>", re.DOTALL)
+_OL_RE = re.compile(r"<ol>(.*?)</ol>", re.DOTALL)
+_LI_RE = re.compile(r"<li>(.*?)</li>", re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+# Quando un elenco numerato diventa una griglia di fatti. I due limiti non sono
+# arbitrari: sotto le tre voci una griglia non è una griglia, sopra le otto
+# diventa un modulo; e una voce che supera i 170 caratteri, in mezza giustezza,
+# occupa più di cinque righe e la griglia si sfalsa. Fuori da questa finestra
+# l'elenco resta un elenco — è la regola che tiene in piedi tutto il resto:
+# il layout segue il testo, non il contrario.
+GRIGLIA_MIN_VOCI = 3
+GRIGLIA_MAX_VOCI = 8
+GRIGLIA_MAX_CARATTERI = 170
+
+# La tinta del capitolo. Tre, non una per capitolo: dicono in che punto del
+# viaggio si è — dove si sta (tappa), come ci si sposta (collegamento), e la
+# cornice che apre e chiude il libro. Tredici colori diversi sarebbero un
+# volantino; tre legati alla funzione sono un sistema.
+TINTA_PER_TIPO = {
+    "tappa": "tappa",
+    "collegamento": "collegamento",
+    "trasferimento": "collegamento",
+}
 
 
 def romano(n: int) -> str:
@@ -112,6 +136,55 @@ def _trasforma_box(frammento: str) -> str:
         return "".join(pezzi)
 
     return _BLOCKQUOTE_RE.sub(sostituisci, frammento)
+
+
+def _famiglia(tipo: str | None) -> str:
+    """La famiglia grafica del capitolo, dedotta dal suo tipo."""
+    return TINTA_PER_TIPO.get((tipo or "").strip().lower(), "cornice")
+
+
+def _testo_nudo(frammento: str) -> str:
+    return html.unescape(_TAG_RE.sub("", frammento)).strip()
+
+
+def _griglia_fatti(frammento: str) -> str:
+    """Gli elenchi numerati brevi diventano una griglia di fatti.
+
+    «Cinque cose da sapere prima» scritto come elenco puntato è un elenco
+    puntato: si legge come una lista della spesa. Le stesse cinque righe in
+    griglia, ognuna col suo numero in tondo, si leggono a colpo d'occhio — è il
+    modo in cui le guide vere mettono i fatti secchi, ed è l'unico elemento da
+    rivista che il nostro testo produce già da solo, senza che il generatore
+    debba imparare niente di nuovo.
+
+    La trasformazione avviene SOLO se l'elenco ha la forma giusta (poche voci,
+    tutte brevi) e mai dentro un box, dove la giustezza è già dimezzata. Un
+    elenco che non rientra nei limiti resta un elenco: un template riempito male
+    si vede molto più di un template che non c'è.
+    """
+    vietati = [m.span() for m in _ASIDE_RE.finditer(frammento)]
+
+    def dentro_un_box(pos: int) -> bool:
+        return any(a <= pos < b for a, b in vietati)
+
+    def sostituisci(m: re.Match) -> str:
+        if dentro_un_box(m.start()):
+            return m.group(0)
+        voci = _LI_RE.findall(m.group(1))
+        if not (GRIGLIA_MIN_VOCI <= len(voci) <= GRIGLIA_MAX_VOCI):
+            return m.group(0)
+        if any(len(_testo_nudo(v)) > GRIGLIA_MAX_CARATTERI for v in voci):
+            return m.group(0)
+        if any("<p>" in v or "<ul>" in v or "<ol>" in v for v in voci):
+            return m.group(0)
+        celle = "".join(
+            f'<div class="voce"><span class="n">{i}</span>'
+            f'<span class="t">{v.strip()}</span></div>'
+            for i, v in enumerate(voci, 1)
+        )
+        return f'<div class="griglia">{celle}</div>'
+
+    return _OL_RE.sub(sostituisci, frammento)
 
 
 def _capolettera(frammento: str) -> str:
@@ -187,6 +260,7 @@ def _corpo_capitolo(corpo_md: str) -> tuple[str, str]:
 
     frammento = re.sub(r"<h2>(.*?)</h2>", titolo, frammento, flags=re.DOTALL)
     frammento = re.sub(r"<h3>(.*?)</h3>", r'<h2 class="sezione">\1</h2>', frammento)
+    frammento = _griglia_fatti(frammento)
     frammento = _capolettera(frammento)
     return occhiello, frammento
 
@@ -226,8 +300,12 @@ def _frontespizio(brief: Brief, titolo: str) -> str:
 def _indice(capitoli: list[dict]) -> str:
     voci = []
     for c in capitoli:
+        # Il numero prende la tinta della famiglia: così l'indice è anche la
+        # legenda delle linguette sul taglio, e si impara il codice dei colori
+        # senza che nessuno lo spieghi.
         voci.append(
-            f'<li><span class="numero">{romano(c["numero"])}</span>'
+            f'<li><span class="numero numero--{_famiglia(c.get("tipo"))}">'
+            f'{romano(c["numero"])}</span>'
             f'<span class="voce">{html.escape(c["titolo"])}</span>'
             f'<a class="pagina" href="#cap-{c["numero"]}"></a></li>'
         )
@@ -291,13 +369,20 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
     parti = [_frontespizio(brief, titolo), _indice(capitoli)]
     for c in capitoli:
         occhiello, corpo = _corpo_capitolo(c.get("corpo_md") or "")
+        fam = _famiglia(c.get("tipo"))
+        num = romano(c["numero"])
+        # La tacca porta il numero del capitolo nella linguetta sul taglio:
+        # sfogliando si sa dove si è senza leggere niente. Sta nel flusso (e non
+        # in un attributo) perché solo un elemento vero può alimentare string().
         parti.append(
-            f'<section class="capitolo" id="cap-{c["numero"]}">'
+            f'<section class="capitolo capitolo--{fam}" id="cap-{c["numero"]}">'
             f'<header class="apre">'
-            f'<div class="numero">Capitolo {romano(c["numero"])}</div>'
+            f'<span class="tacca">{num}</span>'
+            f'<div class="numero">Capitolo {num}</div>'
+            f'<div class="filetto"></div>'
             f'<h1>{html.escape(c["titolo"])}</h1>'
             + (f'<p class="occhiello">{html.escape(occhiello)}</p>' if occhiello else "")
-            + '<div class="filetto"></div></header>'
+            + "</header>"
             f'<div class="corpo">{corpo}</div></section>'
         )
     parti.append(_colophon(brief))
