@@ -73,32 +73,53 @@ def _blocco_avvisi(avvisi: list[dict] | None) -> str:
     return "\n\nCOSA NON TORNAVA:\n\n" + "\n".join(righe)
 
 
-def _costruisci_messaggi(
-    brief_dict: dict,
-    messaggi: list[dict],
-    modo: str = "intake",
-    avvisi: list[dict] | None = None,
-) -> list[dict]:
-    """Trasforma brief + storico in messaggi per l'API.
+_ANCORA = """LA SCHEDA QUI SOPRA È L'UNICA VERITÀ SU QUESTO VIAGGIO.
 
-    Il primo turno è un messaggio user col brief; poi si riporta la
-    conversazione (domande dell'AI come 'assistant', risposte come 'user').
+Se nello storico della conversazione compaiono destinazioni, luoghi o dettagli
+che non c'entrano niente con la scheda, sono il residuo di un'altra intervista
+rimasta aperta: ignorali, non nominarli, non farci domande sopra. Parla solo del
+viaggio che sta nella scheda.
+
+Questo non vale per quello che i viaggiatori ti scrivono adesso: se sono loro a
+correggere la scheda, la correzione è buona e la tieni."""
+
+
+def _blocco_scheda(
+    brief_dict: dict, modo: str = "intake", avvisi: list[dict] | None = None
+) -> str:
+    """La scheda come blocco di sistema, non come primo turno di conversazione.
+
+    Stava nel primo messaggio user, cioè in fondo alla pila: con una
+    conversazione sopra, il modello seguiva la conversazione. È esattamente come
+    un'intervista sull'Umbria finiva a parlare di Tokyo — bastava che il sito si
+    dimenticasse di svuotare i messaggi. Nel sistema la scheda non viene
+    sopravanzata da niente.
     """
-    if modo == "correzione":
-        apertura = (
-            "SCHEDA ATTUALE DEL VIAGGIO:\n\n"
-            + stable_json(brief_dict)
-            + _blocco_avvisi(avvisi)
-            + "\n\nSistema la scheda con quello che i viaggiatori ti scrivono. "
-            "Chiudi appena è utilizzabile."
-        )
-    else:
-        apertura = (
-            "BRIEF (dal form):\n\n"
-            + stable_json(brief_dict)
-            + "\n\nConduci l'intervista secondo le istruzioni: se serve, "
-            "fai la prossima domanda; se hai un quadro sufficiente, chiudi."
-        )
+    intestazione = (
+        "SCHEDA ATTUALE DEL VIAGGIO" if modo == "correzione" else "SCHEDA DEL VIAGGIO (dal form)"
+    )
+    return (
+        f"{intestazione}:\n\n"
+        + stable_json(brief_dict)
+        + _blocco_avvisi(avvisi)
+        + "\n\n"
+        + _ANCORA
+    )
+
+
+def _costruisci_messaggi(messaggi: list[dict], modo: str = "intake") -> list[dict]:
+    """Lo storico della conversazione, e nient'altro.
+
+    Le domande dell'AI come 'assistant', le risposte come 'user'. La scheda non
+    passa più di qui: sta nel blocco di sistema.
+    """
+    apertura = (
+        "Sistema la scheda con quello che i viaggiatori ti scrivono. "
+        "Chiudi appena è utilizzabile."
+        if modo == "correzione"
+        else "Conduci l'intervista secondo le istruzioni: se serve, fai la prossima "
+        "domanda; se hai un quadro sufficiente, chiudi."
+    )
     out = [{"role": "user", "content": apertura}]
     for m in messaggi or []:
         if not isinstance(m, dict):
@@ -108,6 +129,30 @@ def _costruisci_messaggi(
         if testo:
             out.append({"role": ruolo, "content": testo})
     return out
+
+
+def impronta_viaggio(brief_dict: dict) -> str:
+    """Le otto cifre che dicono DI QUALE viaggio si sta parlando.
+
+    Calcolata sulle sole destinazioni, normalizzate e ordinate: cambiare le
+    notti, aggiungere una passione o correggere l'hotel NON cambia l'impronta,
+    e la conversazione in corso sopravvive. Cambiare le destinazioni sì — e a
+    quel punto è un altro viaggio, su cui le domande già fatte non valgono più.
+
+    Serve al sito per dimostrare che la conversazione che ci manda è nata su
+    questa scheda e non su quella di prima.
+    """
+    import hashlib
+
+    tappe = brief_dict.get("tappe") or []
+    luoghi = sorted(
+        {
+            re.sub(r"\s+", " ", str(t.get("luogo") or "")).strip().lower()
+            for t in tappe
+            if isinstance(t, dict) and str(t.get("luogo") or "").strip()
+        }
+    )
+    return hashlib.sha256("|".join(luoghi).encode("utf-8")).hexdigest()[:8]
 
 
 MIN_RISPOSTE = 2  # non chiudere prima di almeno due risposte dell'utente
@@ -142,8 +187,11 @@ def _chiama_modello(
         model=config.MODEL_INTERVISTA,
         max_tokens=config.MAX_TOKENS_INTERVISTA,
         output_config={"effort": config.EFFORT_LEGGERO},
-        system=_system_prompt(modo),
-        messages=_costruisci_messaggi(brief_dict, messaggi, modo, avvisi),
+        system=[
+            {"type": "text", "text": _system_prompt(modo)},
+            {"type": "text", "text": _blocco_scheda(brief_dict, modo, avvisi)},
+        ],
+        messages=_costruisci_messaggi(messaggi, modo),
     )
     raw = "".join(b.text for b in response.content if b.type == "text")
     obj = _estrai_json(raw)
@@ -188,8 +236,9 @@ def passo_intervista(
     messaggi: list[dict],
     modo: str = "intake",
     avvisi: list[dict] | None = None,
+    impronta: str | None = None,
 ) -> dict:
-    """Un turno di conversazione. Ritorna {azione, messaggio, opzioni, brief}.
+    """Un turno di conversazione. Ritorna {azione, messaggio, opzioni, brief, impronta}.
 
     Due modi, con regole diverse:
 
@@ -200,9 +249,34 @@ def passo_intervista(
       con un'altra domanda significa non aver letto quello che hanno scritto.
       Nessun pavimento sul numero di turni.
 
+    `impronta` è quella restituita al turno precedente. Se non corrisponde al
+    viaggio che c'è nella scheda adesso, la conversazione appartiene a un altro
+    viaggio e viene buttata: è la garanzia deterministica contro il caso —
+    successo davvero — di una scheda dell'Umbria con sopra l'intervista del
+    Giappone. Chi non manda l'impronta si comporta esattamente come prima.
+
     Robustezza: se il modello sbaglia il formato, ritenta una volta. Se sbaglia
     ancora, ripiega IN VOCE — mai frasi di sistema, mai il brief perso.
     """
+    adesso = impronta_viaggio(brief_dict)
+    if impronta and impronta != adesso and messaggi:
+        print(
+            f"Intervista: la conversazione ricevuta è nata su un altro viaggio "
+            f"(impronta {impronta}, la scheda dice {adesso}): "
+            f"{len(messaggi)} messaggi scartati, si riparte pulito."
+        )
+        messaggi = []
+
+    esito = _turno(brief_dict, messaggi, modo, avvisi)
+    return {**esito, "impronta": adesso}
+
+
+def _turno(
+    brief_dict: dict,
+    messaggi: list[dict],
+    modo: str,
+    avvisi: list[dict] | None,
+) -> dict:
     obj = _chiama_modello(brief_dict, messaggi, modo, avvisi) or _chiama_modello(
         brief_dict, messaggi, modo, avvisi
     )

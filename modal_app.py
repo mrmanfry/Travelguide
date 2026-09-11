@@ -455,13 +455,20 @@ def web():
           `avvisi_brief`), così l'autore sa a cosa si sta rispondendo.
 
         body: {"brief": {...}, "messaggi": [{"ruolo": "assistant"|"user", "testo": "..."}],
-               "modo": "intake"|"correzione", "avvisi": [{...}]}
+               "modo": "intake"|"correzione", "avvisi": [{...}], "impronta": "a1b2c3d4"}
         Ritorna {"azione": "domanda"|"fine", "messaggio": "...",
-        "opzioni": ["..."], "brief": {...}|null}. `opzioni` sono risposte brevi
-        tappabili (chip) che accompagnano una domanda; [] quando non servono o
-        alla chiusura. A ogni turno il frontend accoda la domanda dell'AI e la
-        risposta dell'utente in `messaggi` e richiama; a "fine" usa il brief
-        arricchito.
+        "opzioni": ["..."], "brief": {...}|null, "impronta": "a1b2c3d4"}.
+        `opzioni` sono risposte brevi tappabili (chip) che accompagnano una
+        domanda; [] quando non servono o alla chiusura. A ogni turno il frontend
+        accoda la domanda dell'AI e la risposta dell'utente in `messaggi` e
+        richiama; a "fine" usa il brief arricchito.
+
+        `impronta` dice DI QUALE viaggio è la conversazione. Il motore la
+        restituisce a ogni turno; il frontend la rimanda al turno dopo. Se non
+        corrisponde alle destinazioni della scheda, la conversazione è il residuo
+        di un altro viaggio e il motore la scarta invece di continuarla — è
+        successo davvero: una scheda dell'Umbria con sopra l'intervista del
+        Giappone. Campo facoltativo: chi non lo manda si comporta come prima.
         """
         _controlla_porta(request)
         if not isinstance(payload, dict):
@@ -473,9 +480,11 @@ def web():
         modo = "correzione" if payload.get("modo") == "correzione" else "intake"
         avvisi = payload.get("avvisi")
         avvisi = avvisi if isinstance(avvisi, list) else None
+        impronta = payload.get("impronta")
+        impronta = impronta.strip() if isinstance(impronta, str) else None
         from src.intervista import passo_intervista
 
-        return passo_intervista(brief, messaggi, modo, avvisi)
+        return passo_intervista(brief, messaggi, modo, avvisi, impronta)
 
     @api.post("/prova-avviso")
     def prova_avviso(request: Request, payload: dict | None = None):
