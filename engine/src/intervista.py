@@ -304,7 +304,10 @@ def passo_intervista(
     Due modi, con regole diverse:
 
     * 'intake' — l'intervista di conoscenza prima di scrivere. Non chiude prima
-      di MIN_RISPOSTE risposte: due domande sono il minimo per tarare un libro.
+      del pavimento, che dipende da quanto il form ha già dato (vedi
+      `_pavimento`): una domanda su una scheda ricca, due su una scarna. Al
+      primo turno cerca anche le contraddizioni della scheda, così i punti
+      aperti diventano la prima domanda invece di un avviso a libro cominciato.
     * 'correzione' — la scheda esiste già e si sta sistemando quello che non
       tornava. Qui chiudere subito è un pregio: se la risposta bastava, insistere
       con un'altra domanda significa non aver letto quello che hanno scritto.
