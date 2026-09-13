@@ -155,7 +155,68 @@ def impronta_viaggio(brief_dict: dict) -> str:
     return hashlib.sha256("|".join(luoghi).encode("utf-8")).hexdigest()[:8]
 
 
-MIN_RISPOSTE = 2  # non chiudere prima di almeno due risposte dell'utente
+# Quante risposte servono prima di poter chiudere. NON è una costante: una
+# quota fissa garantisce che, quando non c'è più niente da imparare, si chieda
+# lo stesso — ed è esattamente la macchina che produce le domande a cui si
+# risponde solo perché sono state fatte. Il pavimento dipende da quanto il form
+# ha già dato.
+PAVIMENTO_SCHEDA_RICCA = 1
+PAVIMENTO_SCHEDA_SCARNA = 2
+# Rete di sicurezza, non un progetto: se il modello continuasse a fare domande
+# oltre questo punto lo si chiude comunque. Deve essere abbastanza alto da non
+# entrare mai in gioco in un'intervista normale.
+MAX_RISPOSTE = 5
+
+
+def _pavimento(brief_dict: dict) -> int:
+    """Il numero minimo di risposte, in funzione di cosa sappiamo già.
+
+    Si contano i campi in cui il viaggiatore ha scritto qualcosa DI SUA
+    INIZIATIVA nel form: sono l'unico materiale ad alta confidenza che abbiamo,
+    perché nessuno glielo ha suggerito. Se ce n'è abbastanza, una domanda basta
+    e si chiude; se la scheda è scarna, se ne fanno due.
+    """
+    oro = brief_dict.get("oro") or {}
+    ricchezza = 0
+    passioni = brief_dict.get("passioni") or []
+    if any(
+        isinstance(p, dict) and str(p.get("dettaglio") or "").strip() for p in passioni
+    ):
+        ricchezza += 1
+    for campo in ("da_non_perdere", "da_evitare"):
+        valore = oro.get(campo)
+        if isinstance(valore, list) and any(str(x).strip() for x in valore):
+            ricchezza += 1
+    for campo in ("contesto_emotivo", "note_libere"):
+        if str(oro.get(campo) or "").strip():
+            ricchezza += 1
+    if str(brief_dict.get("note_mezzo") or "").strip():
+        ricchezza += 1
+    return PAVIMENTO_SCHEDA_RICCA if ricchezza >= 3 else PAVIMENTO_SCHEDA_SCARNA
+
+
+def _avvisi_dalla_scheda(brief_dict: dict) -> list[dict]:
+    """Le incoerenze della scheda, cercate ADESSO e non dopo.
+
+    Finora un campo rimasto pieno dal viaggio precedente si scopriva a libro
+    cominciato, e la domanda arrivava quando il viaggiatore aveva già aspettato.
+    Qui il controllo gira al primo turno dell'intervista — quando è già davanti
+    allo schermo e sta parlando con noi — e i punti aperti diventano la prima
+    domanda invece di un avviso su una pagina.
+
+    Costa millesimi (Haiku, nessuna ricerca) e non solleva mai: se il controllo
+    fallisce, l'intervista prosegue come se la scheda fosse a posto.
+    """
+    try:
+        from schema.brief import Brief
+        from src.coerenza import verifica_coerenza
+
+        scheda = dict(brief_dict)
+        scheda.setdefault("brief_id", "intervista")
+        return verifica_coerenza(Brief.model_validate(scheda)).get("avvisi") or []
+    except Exception as exc:
+        print(f"Intervista: controllo di coerenza non eseguito ({exc}).")
+        return []
 
 # Ripieghi IN VOCE (mai frasi di sistema), usati solo se il modello sbaglia il
 # formato due volte di fila: una domanda morbida se siamo ancora presto, un
@@ -267,6 +328,14 @@ def passo_intervista(
         )
         messaggi = []
 
+    # Al primo turno dell'intake si guarda se la scheda si contraddice, così i
+    # punti aperti diventano la prima domanda. Se il sito ce li manda già (ha
+    # chiamato /coerenza per conto suo) non si rifà il lavoro.
+    if modo == "intake" and not messaggi and avvisi is None:
+        avvisi = _avvisi_dalla_scheda(brief_dict)
+        if avvisi:
+            print(f"Intervista: {len(avvisi)} punto/i da chiarire nella scheda.")
+
     esito = _turno(brief_dict, messaggi, modo, avvisi)
     return {**esito, "impronta": adesso}
 
@@ -297,9 +366,11 @@ def _turno(
             }
         return _normalizza(obj, brief_dict, completa_con_originale=True)
 
+    pavimento = _pavimento(brief_dict)
+
     if obj is None:
         # Due tentativi falliti: ripiego in voce, calibrato su quanto siamo avanti.
-        if n < MIN_RISPOSTE:
+        if n < pavimento:
             return dict(_RIPIEGO_DOMANDA)
         return {
             "azione": "fine",
@@ -311,7 +382,21 @@ def _turno(
         }
 
     # Il modello vuole chiudere troppo presto: riportalo a una domanda in voce.
-    if obj["azione"] == "fine" and n < MIN_RISPOSTE:
+    if obj["azione"] == "fine" and n < pavimento:
         return dict(_RIPIEGO_DOMANDA)
+
+    # Rete di sicurezza: se continua a fare domande oltre il tetto, si chiude.
+    # Non dovrebbe succedere mai — se succede, è un difetto del prompt, non una
+    # cosa da far pagare al viaggiatore in domande.
+    if obj["azione"] == "domanda" and n >= MAX_RISPOSTE:
+        print(f"Intervista: {n} risposte e ancora domande — chiusa d'ufficio.")
+        return {
+            "azione": "fine",
+            "messaggio": (
+                "Ho abbastanza per iniziare: comincio a scrivervi qualcosa che vi somigli."
+            ),
+            "opzioni": [],
+            "brief": brief_dict,
+        }
 
     return _normalizza(obj, brief_dict)
