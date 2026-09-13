@@ -1,0 +1,434 @@
+/* Foglio di stile del libro stampato.
+ *
+ * Formato A5 (148×210): è esattamente metà di un A4, quindi chi lo stampa in
+ * casa ne mette due per foglio senza tagliare niente; su un tablet riempie lo
+ * schermo; e la giustezza che ne esce sta sui sessantasei caratteri, che è la
+ * misura in cui l'occhio non si perde tornando a capo. Un A4 di prosa non è un
+ * libro: è una relazione.
+ *
+ * Margini speculari: il margine interno è più largo di quello esterno, perché
+ * se il libro viene rilegato o pinzato è lì che si perde carta. Chi legge a
+ * schermo non lo nota; chi stampa sì.
+ */
+
+@font-face { font-family: "Garamond libro"; src: url("fonts/EBGaramond-Regular.ttf"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Garamond libro"; src: url("fonts/EBGaramond-Italic.ttf"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Garamond libro"; src: url("fonts/EBGaramond-SemiBold.ttf"); font-weight: 600; font-style: normal; }
+@font-face { font-family: "Garamond libro"; src: url("fonts/EBGaramond-SemiBoldItalic.ttf"); font-weight: 600; font-style: italic; }
+@font-face { font-family: "Archivo libro"; src: url("fonts/Archivo-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Archivo libro"; src: url("fonts/Archivo-Medium.ttf"); font-weight: 500; }
+@font-face { font-family: "Archivo libro"; src: url("fonts/Archivo-SemiBold.ttf"); font-weight: 600; }
+
+:root {
+  --carta:        #fffdf9;
+  --inchiostro:   #241f1a;
+  --inchiostro-2: #3d352d;
+  --grigio:       #8a7f73;
+  --grigio-2:     #a4998c;
+  --filetto:      #d5cabb;
+  --filetto-2:    #eee7dc;
+  --terracotta:   #b4522f;
+  --fondo-box:    #f7f3ec;
+
+  /* Le tre tinte di famiglia. Dicono in che punto del viaggio si è: dove si
+     sta, come ci si sposta, e la cornice che apre e chiude il libro. Non una
+     per capitolo — tredici colori sarebbero un volantino. */
+  --tappa:        #b4522f;   /* terracotta: la città, la terra, lo stare */
+  --collegamento: #4a6670;   /* blu-ardesia: la strada, il finestrino */
+  --cornice:      #7b6742;   /* bronzo spento: la voce che apre e chiude */
+
+  --tinta: var(--cornice);   /* ridefinita dal capitolo, sotto */
+}
+
+/* ----------------------------------------------------------------- pagina */
+
+@page {
+  size: 148mm 210mm;
+  margin: 16mm 14mm 17mm 17mm;
+  background: var(--carta);
+
+}
+
+/* Speculari: l'interno (dove si rilega) sempre più largo. */
+@page :left {
+  margin: 16mm 17mm 17mm 14mm;
+  @bottom-left {
+    content: counter(page);
+    font-family: "Archivo libro", sans-serif;
+    font-size: 7.5pt; color: var(--grigio-2); margin-bottom: 6mm;
+  }
+}
+@page :right {
+  margin: 16mm 14mm 17mm 17mm;
+  @bottom-right {
+    content: counter(page);
+    font-family: "Archivo libro", sans-serif;
+    font-size: 7.5pt; color: var(--grigio-2); margin-bottom: 6mm;
+  }
+}
+
+/* Testatina corrente: a sinistra il libro, a destra il capitolo che si sta
+   leggendo. Serve a sapere dove si è senza tornare all'indice. */
+@page :left {
+  @top-left {
+    content: string(titolo-libro);
+    font-family: "Archivo libro", sans-serif;
+    font-size: 7pt; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--grigio-2);
+    margin-top: 8mm;
+  }
+}
+@page :right {
+  @top-right {
+    content: string(titolo-capitolo);
+    font-family: "Archivo libro", sans-serif;
+    font-size: 7pt; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--grigio-2);
+    margin-top: 8mm;
+  }
+}
+
+/* ------------------------------------------- linguetta sul taglio della pagina
+ *
+ * La fascia colorata che si vede sfogliando, col numero del capitolo dentro.
+ * Vive in un margin box del margine ESTERNO — a destra sulle pagine dispari, a
+ * sinistra sulle pari — così arriva fino al taglio e resta visibile anche a
+ * libro chiuso. L'altezza del margin box la decide il contenuto: il riempimento
+ * verticale è quello che le dà il corpo.
+ *
+ * La posizione dice il tipo quanto il colore: i collegamenti in alto, le tappe
+ * al centro, la cornice in basso. Sfogliando, la fascia che scende segnala che
+ * si è passati dal viaggio agli apparati, senza bisogno di leggere.
+ *
+ * Nei margin box i colori sono scritti per esteso e non con var(): la cascata
+ * delle variabili dell'elemento non arriva qui dentro, e un var() non risolto
+ * qui vuol dire linguetta invisibile invece che linguetta sbagliata.
+ */
+
+/* Forma della linguetta, uguale per tutte: stretta, alta un terzo di pagina,
+   staccata dal testo e appoggiata al taglio. Il margine esterno è 14mm: 7 di
+   aria verso il testo e 7 di fascia colorata fino al bordo. */
+@page tappa:right    { @right-middle  { width: 7mm; height: 32mm; margin-left: 7mm;
+  content: string(tacca); background: #b4522f; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+@page tappa:left     { @left-middle   { width: 7mm; height: 32mm; margin-right: 7mm;
+  content: string(tacca); background: #b4522f; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+
+@page collegamento:right { @right-top { width: 7mm; height: 32mm; margin-left: 7mm;
+  content: string(tacca); background: #4a6670; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+@page collegamento:left  { @left-top  { width: 7mm; height: 32mm; margin-right: 7mm;
+  content: string(tacca); background: #4a6670; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+
+@page cornice:right { @right-bottom { width: 7mm; height: 32mm; margin-left: 7mm;
+  content: string(tacca); background: #7b6742; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+@page cornice:left  { @left-bottom  { width: 7mm; height: 32mm; margin-right: 7mm;
+  content: string(tacca); background: #7b6742; color: #fffdf9;
+  font-family: "Archivo libro", sans-serif; font-size: 6pt; font-weight: 600;
+  text-align: center; } }
+
+.capitolo--tappa        { page: tappa;        --tinta: var(--tappa); }
+.capitolo--collegamento { page: collegamento; --tinta: var(--collegamento); }
+.capitolo--cornice      { page: cornice;      --tinta: var(--cornice); }
+
+/* La tacca alimenta string(): deve stare nel flusso ma non occupare spazio.
+   display:none la toglierebbe dall'albero e con essa la stringa. */
+.tacca {
+  string-set: tacca content();
+  float: left; width: 0; height: 0; overflow: hidden;
+  font-size: 0; color: transparent;
+}
+
+/* Frontespizio, indice e colophon non portano testatina. */
+@page apertura { @top-left { content: none; } @top-right { content: none; } }
+@page frontespizio {
+  margin: 30mm 18mm;
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-left { content: none; } @bottom-right { content: none; }
+}
+
+/* ------------------------------------------------------------------ testo */
+
+html {
+  font-family: "Garamond libro", Georgia, serif;
+  font-size: 10.5pt;
+  line-height: 1.45;
+  color: var(--inchiostro-2);
+  hyphens: auto;
+  text-align: justify;
+  hyphenate-limit-chars: 6 3 3;
+}
+
+body { margin: 0; }
+
+p { margin: 0; text-indent: 1.2em; orphans: 2; widows: 2; }
+/* Il primo capoverso dopo un titolo o un box non rientra: il rientro serve a
+   dire "si continua", e dopo uno stacco non c'è niente da continuare. */
+h1 + p, h2 + p, h3 + p, .box + p, .occhiello + p, .apre + p { text-indent: 0; }
+
+em { font-style: italic; }
+strong { font-weight: 600; color: var(--inchiostro); }
+a { color: var(--terracotta); text-decoration: none; }
+
+/* ------------------------------------------------------- frontespizio e indice */
+
+.frontespizio {
+  page: frontespizio;
+  text-align: center;
+  padding-top: 34mm;
+}
+.frontespizio .editore {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8pt; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--grigio); margin-bottom: 18mm;
+}
+.frontespizio h1 {
+  font-size: 30pt; font-weight: 400; line-height: 1.1;
+  margin: 0; color: var(--inchiostro); text-align: center;
+  string-set: titolo-libro content();
+}
+.frontespizio .sottotitolo {
+  font-size: 13pt; font-style: italic; color: var(--grigio);
+  margin: 6mm 0 0; text-align: center; text-indent: 0;
+}
+.frontespizio .filetto {
+  width: 22mm; height: 0.4pt; background: var(--filetto);
+  margin: 12mm auto;
+}
+.frontespizio .dati {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8.5pt; line-height: 2; letter-spacing: 0.06em;
+  color: var(--grigio); text-align: center; text-indent: 0;
+}
+
+.indice { page: apertura; break-before: page; }
+.indice h2 {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8.5pt; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--grigio); font-weight: 500;
+  margin: 0 0 10mm; text-align: left;
+}
+.indice ol { list-style: none; margin: 0; padding: 0; }
+.indice li {
+  display: flex; align-items: baseline; gap: 3mm;
+  padding: 2.4mm 0; border-bottom: 0.3pt solid var(--filetto-2);
+  text-align: left;
+}
+.indice .numero {
+  font-family: "Archivo libro", sans-serif; font-size: 7.5pt;
+  color: var(--grigio-2); min-width: 8mm; flex-shrink: 0;
+}
+.indice .numero--tappa        { color: var(--tappa); }
+.indice .numero--collegamento { color: var(--collegamento); }
+.indice .numero--cornice      { color: var(--cornice); }
+.indice .voce { font-size: 11pt; color: var(--inchiostro); }
+.indice .pagina {
+  margin-left: auto; font-family: "Archivo libro", sans-serif;
+  font-size: 8pt; color: var(--grigio-2);
+}
+.indice .pagina::after { content: target-counter(attr(href), page); }
+
+/* --------------------------------------------------------------- capitolo */
+
+.capitolo { break-before: page; }
+
+/* L'apertura respira: il titolo non comincia sul filo del margine come farebbe
+   un rapporto, scende di un terzo di pagina come fa un libro. */
+.apre { margin: 26mm 0 15mm; text-align: left; break-after: avoid; }
+.apre .numero {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8pt; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--tinta); margin-bottom: 3.5mm;
+}
+/* Il filetto sta SOPRA il titolo, non sotto: sotto chiudeva l'apertura come
+   una firma, sopra la apre come fa un'insegna. Ed è spesso e colorato, non un
+   capello grigio — è il primo segno di colore della pagina. */
+.apre .filetto {
+  width: 13mm; height: 1.6pt; background: var(--tinta); margin: 0 0 6mm;
+}
+.apre h1 {
+  font-size: 22pt; font-weight: 400; line-height: 1.15;
+  margin: 0; color: var(--inchiostro); text-align: left;
+  string-set: titolo-capitolo content();
+  bookmark-level: 1; bookmark-label: content();
+}
+/* L'occhiello prende la tinta del capitolo: è la riga che dichiara di cosa si
+   parla, e in corsivo colorato si stacca dal titolo invece di confondersi. */
+.apre .occhiello {
+  font-size: 12.5pt; font-style: italic; color: var(--tinta);
+  margin: 5mm 0 0; text-indent: 0; text-align: left; hyphens: none;
+}
+
+/* Capolettera di tre righe: apre il capitolo come si apre un libro. */
+.capolettera {
+  float: left;
+  font-size: 42pt; line-height: 0.80;
+  font-weight: 600; color: var(--inchiostro);
+  padding: 2pt 5pt 0 0;
+}
+
+/* La prima riga del capitolo in maiuscoletto: accompagna il capolettera e fa
+   scendere il lettore nel testo invece di buttarcelo dentro. È il gesto più
+   antico della tipografia del libro.
+   Maiuscoletto SIMULATO — maiuscole rimpicciolite e spaziate — perché questo
+   taglio di EB Garamond non contiene la tabella 'smcp' e font-variant qui non
+   produrrebbe niente (verificato: il font espone solo liga, frac, numr, tnum).
+   Il vero maiuscoletto vorrebbe un secondo file di carattere. */
+.corpo > p:first-of-type::first-line {
+  text-transform: uppercase;
+  font-size: 0.82em;
+  letter-spacing: 0.07em;
+  color: var(--inchiostro);
+}
+
+h2.sezione {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8.5pt; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--inchiostro-2);
+  margin: 9mm 0 3.5mm; text-align: left;
+  break-after: avoid; break-inside: avoid;
+  bookmark-level: 2; bookmark-label: content();
+}
+h2.sezione .romano { color: var(--tinta); }
+
+/* ------------------------------------------------- griglia dei fatti secchi */
+
+/* Un elenco numerato breve — «cinque cose da sapere prima» — non è prosa e non
+   va letto come prosa: si guarda. In due colonne, ogni voce col suo numero in
+   tondo, si legge in un colpo d'occhio invece che riga per riga. Ci arrivano
+   solo gli elenchi che hanno la forma giusta (la regola sta in pdf.py): tutti
+   gli altri restano elenchi, perché una griglia riempita male si vede molto
+   più di una griglia che non c'è. */
+.griglia {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4.5mm 7mm;
+  margin: 6mm 0 7mm;
+  font-size: 9.5pt; line-height: 1.36;
+  text-align: left; hyphens: none;
+}
+.griglia .voce {
+  break-inside: avoid;
+  padding-left: 7mm; text-indent: -7mm;   /* rientro sporgente: le righe dopo
+                                             la prima si allineano al testo,
+                                             non al numero */
+}
+.griglia .n {
+  display: inline-block;
+  width: 4.6mm; height: 4.6mm; margin-right: 2.4mm;
+  border-radius: 50%;
+  background: var(--tinta); color: var(--carta);
+  font-family: "Archivo libro", sans-serif;
+  font-size: 6.6pt; font-weight: 600; line-height: 4.6mm;
+  text-align: center; text-indent: 0;
+  vertical-align: 0.2mm;
+}
+h2.sezione .romano::after {
+  content: "·"; color: var(--filetto); margin: 0 0.55em 0 0.45em;
+}
+
+/* ------------------------------------------------------------------- box */
+
+/* Una sola famiglia: fondo caldo, filetto terracotta a sinistra, etichetta in
+   Archivo maiuscoletto. L'identità la porta l'etichetta, non il colore — sei
+   colori diversi farebbero volantino, non libro. Due sole eccezioni, sotto. */
+.box {
+  /* I box possono continuare sulla pagina dopo. Vietarlo del tutto costringeva
+     a spingere in avanti box lunghi, lasciando mezze pagine bianche: la carta
+     bianca in fondo a una pagina si nota molto più di un box che continua.
+     Il fondo e il filetto proseguono sul frammento nuovo (box-decoration-break
+     'slice'), che è il modo in cui un libro dice «non è finito». */
+  break-inside: auto;
+  box-decoration-break: slice;
+  background: var(--fondo-box);
+  /* Il box prende la tinta del capitolo in cui vive: un box terracotta dentro
+     un capitolo blu sembra una svista, non una scelta. */
+  border-left: 1.6pt solid var(--tinta);
+  /* Margine e imbottitura contenuti: sono il «costo d'ingresso» del box. Per
+     cominciare in fondo a una pagina un box deve farci stare margine,
+     imbottitura, cappello e due righe; ogni millimetro di troppo qui si paga in
+     box che rinunciano e saltano interi alla pagina dopo, lasciando bianco. */
+  padding: 4mm 5mm;
+  margin: 4mm 0;
+  font-size: 9.6pt; line-height: 1.42;
+  text-align: left; hyphens: none;
+}
+.box p { text-indent: 0; margin: 0 0 2mm; orphans: 2; widows: 2; }
+.box p:last-child { margin-bottom: 0; }
+.box .cappello {
+  /* Etichetta e titolo stanno insieme e non si staccano dal testo che segue,
+     che a sua volta non lascia meno di tre righe: un box non comincia mai in
+     fondo a una pagina mostrando la sola etichetta. Il cappello NON comprende
+     il primo capoverso, altrimenti un box fatto di un capoverso solo — il caso
+     normale — tornerebbe indivisibile. */
+  break-inside: avoid;
+  break-after: avoid;
+  margin-bottom: 2.5mm;   /* l'aria fra il titolo e il testo, che il blocco
+                             altrimenti si mangia col margine del titolo */
+}
+.box .etichetta {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 6.8pt; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--tinta);
+  margin: 0 0 1.5mm;
+}
+.box .titolo {
+  font-weight: 600; color: var(--inchiostro);
+  font-size: 10.4pt; margin: 0; line-height: 1.25;
+}
+.box ul { margin: 0; padding-left: 4.5mm; }
+.box li { margin: 0 0 1.5mm; orphans: 2; widows: 2; break-inside: avoid; }
+
+/* ATTENZIONE — è l'unico box che dice "fermati". L'etichetta si rovescia in
+   bianco su terracotta: si vede sfogliando, senza aggiungere un colore nuovo.
+   Ed è l'unico elemento che NON prende la tinta del capitolo: il suo significato
+   non cambia col posto in cui si trova, e un avvertimento che cambia colore ogni
+   volta smette di essere riconoscibile come avvertimento. */
+.box--attenzione { border-left-color: var(--terracotta); }
+.box--attenzione .etichetta {
+  display: inline-block;
+  background: var(--terracotta); color: var(--carta);
+  padding: 1mm 2mm; letter-spacing: 0.16em;
+}
+
+/* GLI IMMOBILI — non è un box tematico, è il registro di ciò che le date
+   decidono al posto del lettore. Perciò non ha il filetto della famiglia: ha
+   una cornice intera, come una tabella, e vive in fondo al capitolo. */
+.box--immobili {
+  /* Il registro si legge in blocco: resta intero finché ci sta in una pagina.
+     Se è più lungo di una pagina si spezza lo stesso — 'avoid' è una preferenza,
+     non un divieto — e la cornice resta aperta sul taglio, come in ogni tabella
+     che continua. */
+  break-inside: avoid;
+  background: transparent;
+  border: 0.5pt solid var(--filetto);
+  border-left: 0.5pt solid var(--filetto);
+  padding: 5mm;
+  margin: 8mm 0 0;
+}
+.box--immobili .etichetta { color: var(--inchiostro); letter-spacing: 0.22em; }
+.box--immobili .titolo { font-size: 10pt; color: var(--inchiostro-2); }
+
+/* --------------------------------------------------------------- colophon */
+
+.colophon {
+  break-before: page; page: apertura;
+  font-size: 9pt; color: var(--grigio);
+  text-align: left; hyphens: none;
+}
+.colophon h2 {
+  font-family: "Archivo libro", sans-serif;
+  font-size: 8.5pt; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--grigio); font-weight: 500; margin: 0 0 6mm;
+}
+.colophon p { text-indent: 0; margin: 0 0 4mm; }

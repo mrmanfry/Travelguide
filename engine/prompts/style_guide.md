@@ -18,7 +18,7 @@ Figura dell'autore: un accompagnatore esperto e onesto, che ha opinioni e le mot
 3. Struttura del capitolo
 
 * Titolo: nome del luogo (con nome indigeno/locale dove esiste) + sottotitolo evocativo che è una tesi.
-* Sezioni numerate romane (I, II, III…) con titoli tematici brevi. 4-7 sezioni per capitolo di tappa.
+* Sezioni numerate romane (I, II, III…) OGNUNA con il suo titolo tematico breve, sulla stessa riga del numero: «## II. Il fiume che sale». Un numero da solo — «## II.» — non è una sezione, è un segnaposto: il titolo serve a chi sfoglia per ritrovare il punto, e finisce nell'indice del libro stampato. 4-7 sezioni per capitolo di tappa.
 * Sezioni organizzate per luogo o tema, mai per giornata; l'arco resta senso→pratica ma non diventa mai un programma orario.
 * Lunghezza: proporzionale a notti × densità della tappa.
 
@@ -58,6 +58,7 @@ Ogni capitolo di tappa si chiude con un blocco GLI IMMOBILI: le sole cose che le
 * Informazioni di servizio nell'attacco del capitolo
 * Box generici che potrebbero stare in qualunque guida della stessa destinazione
 * Dati specifici (prezzi, orari) non provenienti dalla ricerca del turno
+* Annunciare la personalizzazione invece di praticarla. «Sappiamo che uno di voi non beve rosso, e ne teniamo conto» è un promemoria di lavorazione travestito da prosa: dice che avete letto la scheda, non serve a nessuno e suona compiacente. Si scrive invece la cosa utile — un bianco di quota da chiedere in quella cantina — e chi legge capisce da solo che il libro lo conosce. E se in un capitolo una cosa che vi hanno detto non c'entra, si lascia stare: infilarla per forza è la cosa che fa sembrare tutto finto.
 * Ripetere al cliente informazioni che ha dato lui
 * Chiusure riassuntive ("Insomma, Sydney offre davvero tutto")
 * Capitolo organizzato come programma di giornata ("Sabato mattina", "Primo movimento: alle nove in punto")

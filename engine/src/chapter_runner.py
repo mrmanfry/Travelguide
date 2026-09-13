@@ -125,7 +125,7 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
         {
             "type": "text",
             "text": style_guide + "\n\n---\n\n" + system_prompt,
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
         {
             "type": "text",
@@ -137,13 +137,13 @@ def build_system_blocks(brief: Brief, system_file: str = "chapter_system.md") ->
                 + "\n\n"
                 + build_mezzo_block(brief)
             ),
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
     ]
 
 
 def chapter_paths(brief: Brief, assignment: ChapterAssignment) -> tuple[Path, Path]:
-    out_dir = ENGINE_ROOT / "output" / brief.brief_id
+    out_dir = config.output_root() / brief.brief_id
     stem = f"cap_{assignment.numero:02d}"
     return out_dir / f"{stem}.md", out_dir / f"{stem}.usage.json"
 
@@ -179,18 +179,81 @@ def truncate_after_meta(testo: str) -> str:
     return testo[: m.end()]
 
 
+SEZIONE_NUDA_RE = re.compile(r"^##\s*[IVXLC]+[.)]?\s*$", re.MULTILINE)
+
+
+def sezioni_senza_titolo(testo: str) -> list[str]:
+    """I titoli di sezione ridotti al solo numero romano («## II.»).
+
+    Non è un vezzo tipografico: quei titoli finiscono nell'indice del libro
+    stampato e nella barra di navigazione del lettore online. Un indice fatto di
+    «I. II. III.» non fa ritrovare niente a nessuno. Non è riparabile in codice
+    — un titolo non si inventa — quindi si segnala e basta, senza far
+    rigenerare il capitolo: costerebbe un dollaro e mezzo per un difetto di
+    forma, che è esattamente lo scambio che abbiamo deciso di non fare.
+    """
+    corpo = testo.split("<!--META", 1)[0]
+    return [m.strip() for m in SEZIONE_NUDA_RE.findall(corpo)]
+
+
+# Il vocabolario dell'officina. Se compare in una riga del capitolo, quella riga
+# non è prosa per il lettore: è il modello che parla a noi.
+_GERGO_INTERNO = (
+    "nota di lavoro",
+    "nota per il critico",
+    "nota al revisore",
+    "nota tecnica interna",
+    "fuori dal file consegnato",
+    "blocco meta",
+    "claims_da_verificare",
+    "verifica_incompleta",
+    "passaggio critico",
+    "style guide",
+    "budget parole",
+)
+
+
+def rimuovi_note_di_lavoro(testo: str) -> str:
+    """Toglie dal capitolo le note che il modello scrive a noi, non al lettore.
+
+    Capita che il generatore chiuda con una «Nota di lavoro (fuori dal file
+    consegnato)» in cui racconta cosa non è riuscito a verificare, citando la
+    style guide e i campi del blocco META. Crede di parlare fuori dal file; il
+    file è uno solo, e quella nota è finita stampata nel libro di un cliente.
+
+    Il criterio è il vocabolario: un capitolo di viaggio non nomina mai la style
+    guide né i campi del META. Trovata una riga così, si taglia da lì fino alla
+    fine della prosa — queste note stanno sempre in coda, e quello che le segue
+    è altra roba dello stesso genere. Il blocco META, che è nostro e serve, resta.
+    """
+    corpo, sep, coda = testo.partition("<!--META")
+    righe = corpo.split("\n")
+    for i, riga in enumerate(righe):
+        pulita = riga.strip().strip("*_# ").lower()
+        if not pulita:
+            continue
+        if any(marca in pulita for marca in _GERGO_INTERNO):
+            tagliato = "\n".join(righe[:i]).rstrip() + "\n"
+            return tagliato + (("\n" + sep + coda) if sep else "")
+    # Nessuna nota: il testo torna identico, byte per byte. Ricomporlo comunque
+    # aggiungerebbe un a-capo a ogni lettura.
+    return testo
+
+
 def clean_chapter(grezzo: str) -> tuple[str, bool]:
     """Pulizie deterministiche condivise tra generatore e correttore.
 
-    In ordine: taglia il preambolo prima del titolo, rimuove i tag cite, tronca
-    il postscript dopo `META-->`. Ritorna (testo, titolo_ok): se non c'è alcuna
-    riga di titolo '# ', titolo_ok è False e il grezzo è restituito immutato,
-    perché senza titolo non ha senso applicare le altre pulizie.
+    In ordine: taglia il preambolo prima del titolo, rimuove i tag cite, toglie
+    le note di lavoro rivolte a noi, tronca il postscript dopo `META-->`.
+    Ritorna (testo, titolo_ok): se non c'è alcuna riga di titolo '# ', titolo_ok
+    è False e il grezzo è restituito immutato, perché senza titolo non ha senso
+    applicare le altre pulizie.
     """
     testo, titolo_ok = strip_preamble(grezzo)
     if not titolo_ok:
         return grezzo, False
     testo = strip_cite_tags(testo)
+    testo = rimuovi_note_di_lavoro(testo)
     testo = truncate_after_meta(testo)
     return testo, True
 
@@ -216,6 +279,108 @@ def parse_meta(testo: str) -> dict | None:
     return obj if isinstance(obj, dict) else None
 
 
+IMMOBILI_MARK = "GLI IMMOBILI"
+
+
+def tetto_ricerche(assignment: ChapterAssignment) -> int:
+    """Tetto di ricerche per tipo di capitolo.
+
+    Pieno (`MAX_SEARCHES_PER_CHAPTER`) per le tappe, che raccomandano 5-6 nomi
+    propri da verificare; ridotto (`MAX_SEARCHES_NON_TAPPA`) per tutti gli altri
+    tipi (introduzione, contesto, collegamento, congedo, apparati), che non hanno
+    quel requisito e non devono bruciare ricerche.
+    """
+    return (
+        config.MAX_SEARCHES_PER_CHAPTER
+        if assignment.tipo == "tappa"
+        else config.MAX_SEARCHES_NON_TAPPA
+    )
+
+
+def immobili_conforme(assignment: ChapterAssignment, testo: str) -> bool:
+    """Regola del box GLI IMMOBILI: presente se e solo se il capitolo è una tappa.
+
+    Vietato in introduzione, contesto, collegamento, congedo, apparati. Controlla
+    la sola prosa del capitolo, escludendo il blocco META (dove il titolo del box
+    potrebbe comparire come voce `assets`).
+    """
+    corpo = testo.split("<!--META", 1)[0]
+    presente = IMMOBILI_MARK in corpo
+    return presente if assignment.tipo == "tappa" else not presente
+
+
+def controlli_struttura(assignment: ChapterAssignment, testo: str) -> dict:
+    """Controlli deterministici condivisi tra generatore e correttore.
+
+    Presuppone un testo che inizia col titolo '# '. Ritorna un dict con parole,
+    META, banda ammessa e gli esiti dei singoli controlli (lunghezza, META,
+    box GLI IMMOBILI). Serve sia al loop di generazione sia alla validazione
+    dell'output del fixer prima di promuoverlo.
+    """
+    budget = assignment.budget_parole
+    lo, hi = round(budget * 0.85), round(budget * 1.15)
+    parole = chapter_word_count(testo)
+    meta = parse_meta(testo)
+    return {
+        "parole": parole,
+        "meta": meta,
+        "banda": (lo, hi),
+        "lunghezza_ok": lo <= parole <= hi,
+        "meta_ok": meta is not None,
+        "immobili_ok": immobili_conforme(assignment, testo),
+    }
+
+
+def rimuovi_box_immobili(testo: str) -> str | None:
+    """Toglie il box GLI IMMOBILI dalla prosa. Ritorna None se non è sicuro farlo.
+
+    Il box è un elemento chiuso e riconoscibile: una riga che porta la dicitura,
+    e sotto l'elenco dei vincoli, fino al titolo successivo o alla fine della
+    prosa. Quando finisce in un capitolo che non è una tappa è un errore di
+    forma, non di sostanza: toglierlo è un'operazione meccanica, e costa zero
+    contro la rigenerazione di un intero capitolo su Opus.
+
+    Prudenza: se il taglio porterebbe via più di un quarto del capitolo, la
+    dicitura non stava delimitando un box e si rinuncia (None) — meglio
+    rigenerare che consegnare un capitolo mutilato in silenzio.
+    """
+    corpo, sep, coda = testo.partition("<!--META")
+    righe = corpo.split("\n")
+    inizio = next((i for i, r in enumerate(righe) if IMMOBILI_MARK in r), None)
+    if inizio is None:
+        return None
+
+    # Il box finisce al titolo successivo (di qualunque livello); se non ce n'è,
+    # arriva in fondo alla prosa.
+    fine = len(righe)
+    for i in range(inizio + 1, len(righe)):
+        if re.match(r"^#{1,6} ", righe[i]):
+            fine = i
+            break
+
+    rimaste = righe[:inizio] + righe[fine:]
+    nuovo_corpo = "\n".join(rimaste).rstrip() + "\n"
+    tolte = len(" ".join(righe[inizio:fine]).split())
+    if tolte > 0.25 * len(corpo.split()):
+        return None
+    return nuovo_corpo + ("\n" + sep + coda if sep else "")
+
+
+def nota_revisione_immobili(assignment: ChapterAssignment) -> str:
+    """Istruzione di rigenerazione quando il box GLI IMMOBILI non è conforme."""
+    if assignment.tipo == "tappa":
+        return (
+            "BOX GLI IMMOBILI MANCANTE: questo è un capitolo di tappa e DEVE "
+            "contenere il box «GLI IMMOBILI» (i vincoli che le date del cliente "
+            "decidono, presi dal calendario). Inseriscilo."
+        )
+    return (
+        f"BOX GLI IMMOBILI VIETATO: questo capitolo è di tipo '{assignment.tipo}', "
+        "non una tappa, quindi NON deve contenere il box «GLI IMMOBILI». Rimuovilo "
+        "e, se servono vincoli di calendario, integrali nella prosa."
+    )
+
+
 def total_web_searches(usage_log: list[dict]) -> int:
     """Somma le ricerche web di tutte le risposte di un tentativo (pause_turn incluse)."""
     tot = 0
@@ -232,16 +397,19 @@ def run_one_generation(
     user_content: str,
     model: str | None = None,
     max_tokens: int | None = None,
+    effort: str | None = None,
 ):
     """Un singolo tentativo di generazione, gestendo i pause_turn della ricerca.
 
     Ritorna (response, usage_log): la risposta finale e la lista degli usage di
     tutte le chiamate (una sola, o più se il turno è stato messo in pausa).
-    `model` e `max_tokens` sono parametrizzati perché lo stesso ciclo serve sia
-    il generatore (Opus) sia il correttore (Sonnet), con modelli diversi.
+    `model`, `max_tokens` ed `effort` sono parametrizzati perché lo stesso ciclo
+    serve sia il generatore (Opus, sforzo alto) sia il critico (Sonnet, sforzo
+    basso: verificare che un luogo esista non è ragionamento profondo).
     """
     model = model or config.MODEL_GENERATION
     max_tokens = max_tokens or config.MAX_TOKENS_CHAPTER
+    effort = effort or config.effort_generazione()
     user_message = {"role": "user", "content": user_content}
     messages = [user_message]
     usage_log = []
@@ -252,6 +420,8 @@ def run_one_generation(
             system=system,
             tools=tools,
             messages=messages,
+            thinking=config.THINKING_ADATTIVO,
+            output_config={"effort": effort},
         )
         usage_log.append(response.usage.model_dump())
         if response.stop_reason == "pause_turn":
@@ -262,7 +432,9 @@ def run_one_generation(
         return response, usage_log
 
 
-def run_verification_call(client, system, tools, user_content, model, max_tokens):
+def run_verification_call(
+    client, system, tools, user_content, model, max_tokens, effort=None
+):
     """Chiamata di verifica (critico/fixer) con un ritentativo su troncatura.
 
     Come run_one_generation gestisce i pause_turn della ricerca; in più, se il
@@ -274,13 +446,15 @@ def run_verification_call(client, system, tools, user_content, model, max_tokens
     stata troncatura e/o ritentativo.
     """
     response, usage_log = run_one_generation(
-        client, system, tools, user_content, model=model, max_tokens=max_tokens
+        client, system, tools, user_content, model=model, max_tokens=max_tokens,
+        effort=effort or config.effort_critico(),
     )
     retried = False
     if response.stop_reason == "max_tokens":
         retried = True
         response, usage_log_2 = run_one_generation(
-            client, system, tools, user_content, model=model, max_tokens=max_tokens * 2
+            client, system, tools, user_content, model=model,
+            max_tokens=max_tokens * 2, effort=effort or config.effort_critico(),
         )
         usage_log = usage_log + usage_log_2
     info = {
@@ -291,32 +465,114 @@ def run_verification_call(client, system, tools, user_content, model, max_tokens
     return response, usage_log, info
 
 
+def salvage_meta(
+    brief: Brief, assignment: ChapterAssignment, chapter_text: str
+) -> dict | None:
+    """Ricostruisce il blocco META di un capitolo valido a cui manca solo il META.
+
+    Quando la prosa è valida (titolo, banda di lunghezza, box corretti) ma il
+    generatore ha omesso il blocco META finale, non si butta il capitolo: si
+    recupera. Un modello economico (Haiku), SENZA ricerca e SENZA riscrivere il
+    capitolo, legge il testo e restituisce solo il blocco META coi campi
+    ricavabili dalla prosa. Ritorna il META come dict (con `meta_ricostruito:
+    true`), oppure None se non è ricostruibile. Scrive l'usage in
+    cap_NN.meta.usage.json perché il costo del recupero entri nella misura.
+    """
+    client = make_client()
+    istruzioni = (
+        "Ricevi il TESTO di un capitolo di una guida di viaggio a cui manca il "
+        "blocco META finale. Il tuo compito NON è riscrivere il capitolo: è "
+        "produrre soltanto il blocco META che lo chiude, ricavandolo dal testo.\n\n"
+        "Restituisci ESCLUSIVAMENTE un blocco delimitato da `<!--META` e `META-->`, "
+        "senza nulla prima o dopo, contenente JSON valido con i campi:\n"
+        "- `riassunto`: 2-3 frasi che riassumono il capitolo, massimo 150 parole\n"
+        "- `claims_da_verificare`: le affermazioni fattuali specifiche presenti nel "
+        "testo (prezzi, orari, giorni di apertura o chiusura, nomi di locali)\n"
+        "- `assets`: lista di oggetti {tipo, titolo, sezione, deperibilita} ricavati "
+        "dalle sezioni e dai box del capitolo\n"
+        "- `verifica_incompleta`: false\n"
+        "- `fatti_verificati`: [] (lista vuota: il blocco è ricostruito a posteriori "
+        "dal testo, non da una verifica con ricerca)\n\n"
+        "Non inventare dati non presenti nel testo. Nessuna ricerca."
+    )
+    user_content = istruzioni + "\n\n---\n\nTESTO DEL CAPITOLO:\n\n" + chapter_text
+    try:
+        response = client.messages.create(
+            model=config.MODEL_META_SALVAGE,
+            # Nessun output_config qui: Haiku 4.5 non accetta 'effort' e la
+            # chiamata verrebbe rifiutata. Il compito è estrattivo, non serve.
+            max_tokens=config.MAX_TOKENS_META_SALVAGE,
+            messages=[{"role": "user", "content": user_content}],
+        )
+    except Exception as exc:  # rete/API: il recupero fallisce, si torna a rigenerare
+        print(f"ATTENZIONE: salvataggio META fallito (errore API): {exc}", file=sys.stderr)
+        return None
+
+    grezzo = "".join(b.text for b in response.content if b.type == "text")
+    meta = parse_meta(grezzo)
+    if meta is None:
+        # Il modello potrebbe aver reso il solo JSON, senza i delimitatori.
+        try:
+            obj = json.loads(grezzo.strip())
+            meta = obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            meta = None
+    if not isinstance(meta, dict):
+        return None
+
+    meta["meta_ricostruito"] = True
+    meta["verifica_incompleta"] = False
+    meta.setdefault("fatti_verificati", [])
+
+    # Usage del recupero, per la misura dei costi (schema uguale agli altri artefatti).
+    usage_path = chapter_paths(brief, assignment)[0].with_name(
+        f"cap_{assignment.numero:02d}.meta.usage.json"
+    )
+    usage_path.write_text(
+        json.dumps(
+            {
+                "model": response.model,
+                "stop_reason": response.stop_reason,
+                "truncated": response.stop_reason == "max_tokens",
+                "retried": False,
+                "chiamate": [response.usage.model_dump()],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return meta
+
+
 def generate_chapter(
-    brief: Brief, assignment: ChapterAssignment, force: bool = False
+    brief: Brief, assignment: ChapterAssignment
 ) -> tuple[Path, list[str], dict]:
     """Genera il capitolo, lo ripulisce in modo deterministico e lo salva.
 
-    Ritorna (percorso_capitolo, warnings, gen_info). Idempotente: se il file
-    esiste già e `force` è False, non rigenera. La pulizia (preambolo, tag cite)
-    e il controllo di lunghezza con rigenerazione avvengono qui, non nel prompt.
-    `gen_info` espone i fatti che servono al gate a valle (ricerche totali, se
-    sono esaurite, se il modello ha dichiarato `verifica_incompleta`). Se qualcosa
-    non torna (nessun titolo, lunghezza fuori banda dopo i tentativi, META
-    mancante) il file viene salvato comunque ma si scrive cap_NN.WARNING.txt e si
-    popola la lista warnings.
+    Ritorna (percorso_capitolo, warnings, gen_info). NON è idempotente rispetto
+    al file su disco: rigenera sempre, sovrascrivendo l'eventuale capitolo già
+    presente. La decisione di saltare un capitolo (perché già approvato) spetta a
+    monte all'orchestratore, che si fida di stato.json — non dell'esistenza del
+    file — così un capitolo fallito non viene mai riusato saltando i controlli di
+    generazione. La pulizia (preambolo, tag cite) e i controlli di validità con
+    rigenerazione (lunghezza, META, box GLI IMMOBILI) avvengono qui, non nel
+    prompt. `gen_info` espone i fatti che servono al gate a valle (ricerche
+    totali, tetto applicato, se sono esaurite, se il modello ha dichiarato
+    `verifica_incompleta`). Se qualcosa non torna dopo i tentativi il file viene
+    salvato comunque ma si scrive cap_NN.WARNING.txt e si popola la lista warnings.
     """
     cap_path, usage_path = chapter_paths(brief, assignment)
-    if cap_path.exists() and not force:
-        return cap_path, [], {}
     cap_path.parent.mkdir(parents=True, exist_ok=True)
 
     client = make_client()
     system = build_system_blocks(brief)
+    tetto = tetto_ricerche(assignment)
     tools = [
         {
             "type": config.WEB_SEARCH_TOOL_TYPE,
             "name": "web_search",
-            "max_uses": config.MAX_SEARCHES_PER_CHAPTER,
+            "max_uses": tetto,
         }
     ]
     base_user = stable_json(assignment.model_dump(mode="json"))
@@ -331,43 +587,87 @@ def generate_chapter(
     usage_log: list[dict] = []
     testo = ""
 
+    # `valido` = l'ultima versione salvata ha superato TUTTI i controlli
+    # strutturali (titolo, META, banda, box). Se resta False dopo i tentativi, il
+    # capitolo è degenere e il gate a valle non deve nemmeno chiamare il critico.
+    valido = False
     for tentativo in range(1, MAX_GEN_ATTEMPTS + 1):
         user_content = base_user + extra_note
         response, usage_log = run_one_generation(client, system, tools, user_content)
         grezzo = "".join(block.text for block in response.content if block.type == "text")
 
         testo, titolo_ok = clean_chapter(grezzo)
+        note_parti: list[str] = []
+
         if not titolo_ok:
-            # Nessuna riga di titolo: è un errore. Salvo il grezzo e segnalo.
+            # Output degenere senza titolo: NON è più un'uscita immediata dal ciclo,
+            # rientra nei tentativi come ogni altro output non valido.
             testo = grezzo
-            warnings.append(
-                "Nessuna riga di titolo '# ' trovata nell'output: salvato il testo "
-                "grezzo così com'è, senza pulizia del preambolo."
+            note_parti.append(
+                "OUTPUT SENZA TITOLO: il tentativo precedente non iniziava con una riga "
+                "di titolo '# '. Il file è un capitolo di libro: deve iniziare col titolo "
+                "del luogo (riga che inizia con '# '), senza preamboli, commenti o "
+                "resoconti del lavoro svolto."
             )
-            break
-
-        parole = chapter_word_count(testo)
-        meta = parse_meta(testo)
-        lunghezza_ok = lo <= parole <= hi
-        meta_ok = meta is not None
-
-        # Il capitolo è valido solo se rientra nella banda di lunghezza E porta
-        # un blocco META parsabile: senza META il controllo sulle ricerche è
-        # inerte e la libreria asset resta vuota, quindi è motivo di rigenerazione.
-        if lunghezza_ok and meta_ok:
-            break
-
-        if tentativo < MAX_GEN_ATTEMPTS:
-            note_parti = []
-            if not lunghezza_ok:
+        else:
+            c = controlli_struttura(assignment, testo)
+            # Riparazione meccanica prima di ogni giudizio: un box GLI IMMOBILI
+            # finito in un capitolo che non è una tappa si toglie, non si fa
+            # riscrivere. Spesso sistema anche la lunghezza (il box pesa), e
+            # rigenerare un capitolo su Opus costa quanto tutto il resto della
+            # pipeline messo insieme.
+            if not c["immobili_ok"] and assignment.tipo != "tappa":
+                ripulito = rimuovi_box_immobili(testo)
+                if ripulito is not None:
+                    dopo = controlli_struttura(assignment, ripulito)
+                    if dopo["immobili_ok"]:
+                        testo, c = ripulito, dopo
+                        print(
+                            f"Capitolo {assignment.numero:02d}: box GLI IMMOBILI "
+                            f"rimosso (tipo '{assignment.tipo}', non ammesso).",
+                            file=sys.stderr,
+                        )
+            parole = c["parole"]
+            # Valido solo se rientra nella banda, porta un META parsabile (senza
+            # META il controllo ricerche è inerte e la libreria asset resta vuota)
+            # E rispetta la regola del box GLI IMMOBILI (obbligatorio nelle tappe,
+            # vietato altrove).
+            if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
+                valido = True
+                break
+            # Recupero del META, tentato ogni volta che manca — non più solo
+            # quando è l'unico problema. Il META è l'unica cosa che può fermare
+            # il libro (senza, il capitolo dopo non eredita il riassunto e la
+            # catena si spezza), quindi la scialuppa va calata sempre: costa
+            # una chiamata a Haiku contro una rigenerazione su Opus.
+            if not c["meta_ok"]:
+                meta_rec = salvage_meta(brief, assignment, testo)
+                if meta_rec is not None:
+                    blocco = (
+                        "<!--META\n"
+                        + json.dumps(meta_rec, ensure_ascii=False, indent=2)
+                        + "\nMETA-->"
+                    )
+                    testo = testo.rstrip() + "\n\n" + blocco
+                    c = controlli_struttura(assignment, testo)
+                    if c["meta_ok"]:
+                        print(
+                            f"Capitolo {assignment.numero:02d}: META ricostruito via "
+                            f"{config.MODEL_META_SALVAGE}.",
+                            file=sys.stderr,
+                        )
+                    if c["lunghezza_ok"] and c["immobili_ok"] and c["meta_ok"]:
+                        valido = True
+                        break
+            if not c["lunghezza_ok"]:
                 verso = "più lungo" if parole < lo else "più corto"
                 note_parti.append(
                     f"REVISIONE LUNGHEZZA: il tentativo precedente era di {parole} parole, "
                     f"fuori dalla banda ammessa ({lo}-{hi}) per il budget di {budget}. "
                     f"Riscrivi il capitolo {verso}, puntando a circa {budget} parole, "
-                    f"senza sacrificare i nomi concreti né il box GLI IMMOBILI."
+                    f"senza sacrificare i nomi concreti."
                 )
-            if not meta_ok:
+            if not c["meta_ok"]:
                 note_parti.append(
                     "BLOCCO META MANCANTE O NON PARSABILE: il tentativo precedente non "
                     "conteneva un blocco META valido. Devi EMETTERE il blocco nel formato "
@@ -376,19 +676,41 @@ def generate_chapter(
                     "descriverlo a parole né riassumerlo in un postscript. È l'ultimo blocco "
                     "del file: dopo `META-->` non deve seguire nient'altro."
                 )
+            if not c["immobili_ok"]:
+                note_parti.append(nota_revisione_immobili(assignment))
+
+        if tentativo < MAX_GEN_ATTEMPTS:
             extra_note = "\n\n" + "\n\n".join(note_parti)
         else:
-            if not lunghezza_ok:
+            # Ultimo tentativo ancora non valido: registra i warning definitivi.
+            if not titolo_ok:
                 warnings.append(
-                    f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
-                    f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
+                    f"Nessuna riga di titolo '# ' nell'output dopo {MAX_GEN_ATTEMPTS} "
+                    "tentativi: il file non è un capitolo valido."
                 )
-            if not meta_ok:
-                warnings.append(
-                    f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} tentativi: "
-                    "il capitolo è salvato come grezzo ma non è valido (controllo ricerche "
-                    "inerte, nessun asset estratto)."
-                )
+            else:
+                if not c["lunghezza_ok"]:
+                    warnings.append(
+                        f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                        f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
+                    )
+                if not c["meta_ok"]:
+                    warnings.append(
+                        f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} "
+                        "tentativi: il capitolo è salvato come grezzo ma non è valido "
+                        "(controllo ricerche inerte, nessun asset estratto)."
+                    )
+                if not c["immobili_ok"]:
+                    if assignment.tipo == "tappa":
+                        warnings.append(
+                            f"Box GLI IMMOBILI assente dopo {MAX_GEN_ATTEMPTS} tentativi in "
+                            "un capitolo di tappa: manca l'elemento strutturale obbligatorio."
+                        )
+                    else:
+                        warnings.append(
+                            f"Box GLI IMMOBILI presente dopo {MAX_GEN_ATTEMPTS} tentativi in "
+                            f"un capitolo di tipo '{assignment.tipo}' (non tappa): è vietato."
+                        )
 
     # Segnali sull'ultimo tentativo salvato. NOTA: la presenza di voci in
     # `claims_da_verificare` NON è un difetto — per progetto è la lista che lo
@@ -397,6 +719,13 @@ def generate_chapter(
     # modello quando esaurisce le ricerche prima di verificare i nomi che
     # intendeva citare. La condizione "ricerche esaurite + claim non verificati"
     # è valutata a valle dal gate, che ha in mano anche l'esito del critico.
+    nude = sezioni_senza_titolo(testo)
+    if nude:
+        warnings.append(
+            f"{len(nude)} sezione/i senza titolo (solo il numero romano): "
+            "nell'indice del libro compaiono come voci vuote."
+        )
+
     meta = parse_meta(testo)
     verifica_incompleta = bool((meta or {}).get("verifica_incompleta"))
     ricerche = total_web_searches(usage_log)
@@ -408,8 +737,16 @@ def generate_chapter(
 
     gen_info = {
         "ricerche": ricerche,
-        "ricerche_esaurite": ricerche >= config.MAX_SEARCHES_PER_CHAPTER,
+        "tetto_ricerche": tetto,
+        "ricerche_esaurite": ricerche >= tetto,
         "verifica_incompleta": verifica_incompleta,
+        "valido": valido,
+        # Consegnabile ≠ valido. Un capitolo fuori banda del 3%, o con un box
+        # fuori posto, è un difetto da segnalare al lettore in da_rivedere.md —
+        # non un motivo per fermare un libro già pagato. L'unica cosa che ferma
+        # davvero è l'assenza del META: senza riassunto il capitolo successivo
+        # non eredita nulla e la catena si spezza.
+        "consegnabile": meta is not None,
     }
 
     cap_path.write_text(testo, encoding="utf-8")
@@ -434,14 +771,20 @@ def generate_chapter(
 
     if warnings:
         warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
+        intestazione = (
+            "CAPITOLO CONSEGNATO CON DIFETTI DI FORMA — da rivedere:"
+            if meta is not None
+            else "CAPITOLO NON CONSEGNABILE — manca il riassunto:"
+        )
         warning_path.write_text(
-            "CAPITOLO NON VALIDO — problemi rilevati:\n\n"
+            intestazione
+            + "\n\n"
             + "\n".join(f"- {w}" for w in warnings)
             + "\n",
             encoding="utf-8",
         )
         print(
-            f"ATTENZIONE: capitolo {assignment.numero:02d} non valido, "
+            f"ATTENZIONE: capitolo {assignment.numero:02d}, "
             f"{len(warnings)} problema/i — vedi {warning_path.name}:",
             file=sys.stderr,
         )

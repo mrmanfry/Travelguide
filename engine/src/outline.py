@@ -12,6 +12,7 @@ from pathlib import Path
 
 from schema.brief import Brief, ChapterAssignment
 from src import config
+from src import config
 from src.chapter_runner import (
     PROMPTS_DIR,
     build_calendar_block,
@@ -27,7 +28,7 @@ _ARRAY_RE = re.compile(r"```(?:json)?\s*(\[.*?\])\s*```", re.DOTALL)
 
 
 def outline_path(brief: Brief) -> Path:
-    return ENGINE_ROOT / "output" / brief.brief_id / "outline.json"
+    return config.output_root() / brief.brief_id / "outline.json"
 
 
 def _build_outline_system(brief: Brief) -> list[dict]:
@@ -39,7 +40,7 @@ def _build_outline_system(brief: Brief) -> list[dict]:
     prompt = (PROMPTS_DIR / "outline_system.md").read_text(encoding="utf-8")
     prompt = prompt.replace("{{LINGUA}}", brief.lingua_guida)
     return [
-        {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral", "ttl": "1h"}},
         {
             "type": "text",
             "text": (
@@ -50,7 +51,7 @@ def _build_outline_system(brief: Brief) -> list[dict]:
                 + "\n\n"
                 + build_mezzo_block(brief)
             ),
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         },
     ]
 
@@ -104,6 +105,7 @@ def genera_outline(brief: Brief) -> tuple[list[ChapterAssignment], float | None]
     response = client.messages.create(
         model=config.MODEL_OUTLINE,
         max_tokens=config.MAX_TOKENS_OUTLINE,
+        output_config={"effort": config.effort_outline()},
         system=system,
         messages=[
             {

@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Courier+Prime:wght@400;700&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f1e6; color: #2b2a26;
+           font-family: "Courier Prime", "Courier New", monospace; }
+    a { color: #7a6a4f; }
+    a:hover { color: #5c4f3a; }
+  </style>
+</helmet>
+
+<div style="width: 560px; height: 420px; background:
+     repeating-linear-gradient(0deg, #ece8da 0 1px, transparent 1px 22px),
+     repeating-linear-gradient(90deg, #ece8da 0 1px, transparent 1px 22px), #f4f1e6;
+     padding: 26px 28px; position: relative;">
+
+  <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8272;">Direzione B</div>
+  <div style="font-family: Caveat, 'Comic Sans MS', cursive; font-size: 34px; line-height: 1.05; margin-top: 10px; color: #2b2a26;">Quaderno di viaggio</div>
+
+  <div style="margin-top: 18px; display: flex; gap: 18px;">
+    <div style="flex-grow: 1;">
+      <div style="height: 9px; background: #ddd7c6; width: 92%;"></div>
+      <div style="height: 9px; background: #ddd7c6; width: 78%; margin-top: 7px;"></div>
+      <div style="height: 9px; background: #ddd7c6; width: 85%; margin-top: 7px;"></div>
+      <div style="margin-top: 16px; border: 1.5px dashed #b3a98f; padding: 10px 12px; font-size: 11px; line-height: 1.5; color: #5c5647;">
+        appunti a margine, timbri,<br>una mano che ha già viaggiato
+      </div>
+    </div>
+    <div style="width: 150px; border: 1.5px solid #b3a98f; background: #fdfcf6; transform: rotate(-2deg); padding: 10px;">
+      <svg viewBox="0 0 130 90" width="100%" height="76" fill="none" stroke="#8a8272" stroke-width="1.4">
+        <path d="M6 74 C 40 58, 52 34, 84 26 S 118 16, 126 10"/>
+        <circle cx="6" cy="74" r="3.5" fill="#8a8272"/>
+        <circle cx="126" cy="10" r="3.5" fill="#8a8272"/>
+      </svg>
+      <div style="font-family: Caveat, cursive; font-size: 15px; color: #5c5647; margin-top: 4px;">tappa 3 → 4</div>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 28px; right: 28px; bottom: 24px; border-top: 1.5px solid #b3a98f; padding-top: 12px; font-size: 10px; line-height: 1.6; color: #5c5647;">
+    <strong>Perché:</strong> intimo, personale, sembra scritto a mano per voi — massima calore umano.<br>
+    <strong>Il prezzo:</strong> fatica a reggere i 39 €. Il fatto a mano legge «gratuito», non «pregiato».
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
