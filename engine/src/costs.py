@@ -34,6 +34,28 @@ def _prezzo_modello(model: str) -> dict | None:
     return config.PRICING[max(candidati, key=len)]
 
 
+def modelli_senza_prezzo() -> list[str]:
+    """I modelli configurati che non sono in tabella prezzi.
+
+    Serve a una cosa sola, e importante: i modelli si cambiano da variabile
+    d'ambiente senza ridiploy, ma il costo di un modello sconosciuto vale None,
+    e chi somma il costo cumulato legge `... or 0.0`. Il risultato è che un
+    modello nuovo non messo a listino non fa fallire niente — **spegne in
+    silenzio il tetto di spesa**, e il primo segnale arriva dalla fattura.
+    Meglio non partire affatto.
+    """
+    configurati = {
+        config.MODEL_GENERATION,
+        config.MODEL_CRITIC,
+        config.MODEL_FIXER,
+        config.MODEL_OUTLINE,
+        config.MODEL_INTERVISTA,
+        config.MODEL_META_SALVAGE,
+        config.MODEL_COERENZA,
+    }
+    return sorted(m for m in configurati if _prezzo_modello(m) is None)
+
+
 def costo_chiamata(model: str, usage: dict) -> dict:
     """Costo di una singola risposta API a partire dal suo usage.
 

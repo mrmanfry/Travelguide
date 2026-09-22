@@ -30,12 +30,12 @@ def assets_db_path() -> Path:
 # cambiare un secret su Modal e ridiployare, senza toccare il codice. Vale solo
 # per i modelli Anthropic — il motore usa la ricerca web server-side, la cache
 # esplicita a blocchi e il formato usage di questa API.
-MODEL_GENERATION = os.environ.get("GUIDE_MODELLO_SCRITTURA", "claude-opus-4-8")
+MODEL_GENERATION = os.environ.get("GUIDE_MODELLO_SCRITTURA", "claude-opus-5-5")
 MODEL_CRITIC = os.environ.get("GUIDE_MODELLO_CRITICO", "claude-sonnet-5")
 MODEL_FIXER = MODEL_CRITIC
 # L'outline è ragionamento strutturale, senza ricerca: sta su Opus per qualità,
 # ma è una sola chiamata piccola (pochi centesimi).
-MODEL_OUTLINE = "claude-opus-4-8"
+MODEL_OUTLINE = "claude-opus-5-5"
 MAX_TOKENS_OUTLINE = 4000
 # Intervista di intake: una conversazione breve che, partendo dal brief del
 # form, chiede il poco che manca per tarare la guida. Nessuna ricerca, poche
@@ -181,6 +181,21 @@ def max_costo_guida_usd() -> float:
 # 5 minuti di default il prefisso scadeva perfino dentro un singolo capitolo e
 # si ripagava più volte. `cache_read` è la lettura (0.10x l'input).
 PRICING = {
+    # Opus 5.5: stesso mestiere di 4.8 a un quinto in meno sia in entrata che in
+    # uscita, e la lettura di cache a 0.20 — un rapporto migliore del solito
+    # 0.10x dell'input. È il modello con cui scriviamo.
+    "claude-opus-5-5": {
+        "input": 4.00,
+        "output": 20.00,
+        "cache_write": 8.00,    # 2 * input (TTL 1h)
+        "cache_read": 0.20,     # listino esplicito, non 0.10 * input
+    },
+    "claude-opus-5": {
+        "input": 5.00,
+        "output": 25.00,
+        "cache_write": 10.00,   # 2 * input (TTL 1h)
+        "cache_read": 0.50,    # 0.10 * input
+    },
     "claude-opus-4-8": {
         "input": 5.00,
         "output": 25.00,

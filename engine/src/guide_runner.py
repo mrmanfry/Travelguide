@@ -28,7 +28,7 @@ from src.chapter_runner import (
     rimuovi_note_di_lavoro,
 )
 from src.coerenza import coerenza_path, scrivi_coerenza, verifica_coerenza
-from src.costs import costruisci_costi
+from src.costs import costruisci_costi, modelli_senza_prezzo
 from src.outline import carica_o_genera_outline
 from src.run_chapter import esegui_capitolo
 
@@ -423,6 +423,21 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
         f"ricerche {config.MAX_SEARCHES_PER_CHAPTER}/"
         f"{config.MAX_SEARCHES_NON_TAPPA}/{config.MAX_SEARCHES_CRITIC}"
     )
+
+    # Nessun modello fuori listino. Non è pignoleria: il costo di un modello
+    # sconosciuto vale None, e chi somma il cumulato lo legge come zero — il
+    # tetto di spesa resterebbe acceso in apparenza e spento nei fatti, e ce ne
+    # accorgeremmo dalla fattura. Si preferisce non partire.
+    fuori_listino = modelli_senza_prezzo()
+    if fuori_listino:
+        messaggio = (
+            "Modelli senza prezzo in config.PRICING: "
+            + ", ".join(fuori_listino)
+            + ". Senza listino il costo risulta zero e il tetto di spesa non "
+            "protegge più niente: aggiungi il prezzo prima di generare."
+        )
+        scrivi_arresto(brief, "configurazione dei modelli", messaggio, 0.0, 1)
+        return 1
 
     # Guardia sul brief, prima di spendere: solo alla prima passata (se
     # coerenza.json esiste già, questa guida è una ripresa o un completamento e

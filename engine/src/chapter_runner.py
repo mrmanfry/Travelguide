@@ -424,10 +424,35 @@ def run_one_generation(
             output_config={"effort": effort},
         )
         usage_log.append(response.usage.model_dump())
+        if response.stop_reason == "refusal":
+            # I classificatori di sicurezza hanno declinato. Su una guida di
+            # viaggio non dovrebbe succedere: se succede va detto a chiare
+            # lettere, perché il contenuto torna vuoto e senza questa riga
+            # sembrerebbe un capitolo mal scritto invece di una richiesta
+            # rifiutata.
+            dettagli = getattr(response, "stop_details", None)
+            print(
+                f"Chiamata declinata dal modello {model} "
+                f"(categoria: {getattr(dettagli, 'category', '?')}).",
+                file=sys.stderr,
+            )
+            return response, usage_log
         if response.stop_reason == "pause_turn":
-            # La ricerca web server-side ha messo in pausa il turno:
-            # si rimanda la conversazione così com'è per farla riprendere.
-            messages = [user_message, {"role": "assistant", "content": response.content}]
+            # La ricerca web server-side ha messo in pausa il turno: si accoda
+            # la risposta e si richiama per farlo riprendere.
+            #
+            # ACCODARE, non ricostruire. Prima qui si riscriveva
+            # `[user_message, ultima_risposta]`: alla SECONDA pausa il turno
+            # della prima spariva, e con lui le ricerche già fatte — il modello
+            # le rifaceva, pagandole due volte e scrivendo con meno contesto di
+            # quanto credesse di avere. Sui capitoli lunghi, quelli con più
+            # ricerche, era anche il caso peggiore. In più i modelli recenti
+            # legano i blocchi di ragionamento alla conversazione che li ha
+            # prodotti: una storia riscritta invece che accresciuta è
+            # esattamente ciò che il controllo sulle modifiche rifiuta.
+            messages = messages + [
+                {"role": "assistant", "content": response.content}
+            ]
             continue
         return response, usage_log
 
