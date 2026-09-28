@@ -25,6 +25,10 @@ class DateViaggio(BaseModel):
 class Viaggiatori(BaseModel):
     adulti: int = 2
     bambini_eta: list[int] = Field(default_factory=list)
+    # I nomi di chi viaggia. Il sito li chiede promettendo che «il libro parlerà
+    # di voi, non di due generici viaggiatori»; senza questo campo Pydantic li
+    # scartava in silenzio e chi scriveva non li vedeva mai.
+    nomi: list[str] = Field(default_factory=list)
     occasione: Literal[
         "luna_di_miele",
         "coppia",
@@ -54,6 +58,34 @@ class Oro(BaseModel):
     note_libere: Optional[str] = None
 
 
+class GiornoProgramma(BaseModel):
+    numero: Optional[int] = None
+    titolo: Optional[str] = None
+    racconto: Optional[str] = None
+
+
+class Programma(BaseModel):
+    """Il documento che i viaggiatori hanno già in mano, letto dal sito.
+
+    Programma dell'agenzia, conferme di prenotazione, il foglio che si sono
+    preparati. Non è una preferenza: è la fonte più precisa che abbiamo sulla
+    loro logistica. Per questo sta fuori da `oro` — che l'intervista affina e
+    l'utente riscrive — e nessuno lo tocca dopo la lettura.
+
+    Il file originale non arriva mai qui: il sito lo legge, ne ricava questo
+    estratto senza codici di prenotazione, documenti, telefoni e prezzi, e lo
+    butta. Al motore serve cosa c'è scritto, non la carta.
+    """
+
+    titolo: Optional[str] = None
+    giorni: list[GiornoProgramma] = Field(default_factory=list)
+    # Tutto quello che non sta nei giorni: alberghi e quartieri, orari di
+    # arrivo e partenza, inclusi ed esclusi, note pratiche.
+    testo: Optional[str] = None
+    # I nomi dei file letti: servono a noi per capire da dove viene cosa.
+    fonti: list[str] = Field(default_factory=list)
+
+
 class Brief(BaseModel):
     brief_id: str
     lingua_guida: str = "it"
@@ -74,6 +106,7 @@ class Brief(BaseModel):
         "misto",
     ] = "misto"
     note_mezzo: Optional[str] = None
+    programma: Optional[Programma] = None
 
     @property
     def giorni(self) -> int:

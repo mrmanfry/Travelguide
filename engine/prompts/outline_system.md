@@ -21,6 +21,9 @@ Regole della struttura — vincolanti
 Il mezzo di trasporto è un vincolo strutturale, non un dettaglio
 Il mezzo (nel blocco MEZZO del contesto) filtra la forma stessa della guida: cosa si può portare, come e quando ci si sposta, dove si parcheggia, come si sale su un traghetto, che tipo di strada si affronta. In moto: bagaglio limitato (niente acquisti ingombranti), caldo e abbigliamento tecnico, fasce orarie di guida, fondo stradale e tornanti, sicurezza del mezzo, imbarco e fissaggio sui traghetti. Quando viaggiano in due sulla stessa moto, chi guida e chi sta dietro vivono lo stesso tragitto in modo diverso: tienine conto già nella struttura (es. i confini tematici dei capitoli di tappa e collegamento devono lasciar spazio alla logistica del mezzo). Le giornate di guida lunghe possono giustificare un capitolo di collegamento dove altrimenti non servirebbe.
 
+Se il brief contiene un `programma`
+È il documento che i viaggiatori hanno già (programma d'agenzia, prenotazioni), spesso organizzato giorno per giorno. La struttura resta quella delle regole qui sopra — per tappe, mai per giornate: un programma di dieci giorni non diventa dieci capitoli. Il programma serve ai confini tematici: ciò che ha già organizzato (visite guidate, transfer, cene incluse) va raccontato nel capitolo della tappa in cui cade, non riprogrammato altrove.
+
 L'outline è un CONTRATTO
 Per ogni capitolo definisci un `confine_tematico`: in una o due frasi, cosa quel capitolo tratta e — soprattutto — cosa LASCIA agli altri capitoli, per evitare sovrapposizioni. Es. "il capitolo Lisbona tratta i quartieri e il cibo della città; lascia al capitolo di contesto la storia del paese e agli apparati la logistica dei trasporti". I confini devono incastrarsi senza buchi né doppioni.
 

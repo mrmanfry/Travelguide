@@ -103,7 +103,7 @@ def _avvisa_sito(job_id: str, fase: str) -> None:
         # Senza uno User-Agent da browser molte protezioni di frontiera
         # rispondono 403 a "Python-urllib" senza mai passare la richiesta
         # all'app.
-        "User-Agent": "AtelierDelViaggio-Motore/1.0",
+        "User-Agent": "StradaLeggendo-Motore/1.0",
         "Accept": "application/json",
     }
     if apikey:
@@ -161,7 +161,7 @@ def _controprova(url: str, codice: int, corpo: str) -> None:
             urllib.request.Request(
                 finto,
                 data=b"{}",
-                headers={"Content-Type": "application/json", "User-Agent": "AtelierDelViaggio-Motore/1.0"},
+                headers={"Content-Type": "application/json", "User-Agent": "StradaLeggendo-Motore/1.0"},
                 method="POST",
             ),
             timeout=20,

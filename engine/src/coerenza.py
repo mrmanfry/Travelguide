@@ -42,6 +42,11 @@ Cerchi esattamente questo:
 - Le date contro la durata, e le date contro le tappe (più tappe che giorni).
 - Il numero e la composizione dei viaggiatori contro se stessi.
 - Passioni o richieste che il mezzo o le date rendono impossibili.
+- Se c'è un `programma` (il documento che i viaggiatori hanno caricato): la
+  scheda contro il programma — date di inizio e fine, numero di giorni, tappe e
+  loro ordine, numero di viaggiatori. Il caso tipico è una scheda ritoccata dopo
+  il caricamento e un programma rimasto indietro, o il contrario. Il programma
+  è un documento, non un'opinione: se dice un'altra cosa, va chiesto.
 
 Come leggere le date: sono nel formato giorno.mese — "21.10" è il 21 ottobre,
 mai le 21:10. Non trattare mai una data come un orario.

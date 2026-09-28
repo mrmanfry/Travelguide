@@ -7,6 +7,12 @@ from pathlib import Path
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 
 
+# Il nome con cui il libro è firmato: frontespizio, nota finale, intestazioni.
+# In un posto solo, perché l'ultima volta che è cambiato il sito si chiamava già
+# in un modo e il libro stampava ancora l'altro.
+MARCHIO = "Strada Leggendo"
+
+
 def output_root() -> Path:
     """Radice degli artefatti generati (stato, capitoli, guida, costi, asset).
 

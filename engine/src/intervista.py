@@ -261,28 +261,52 @@ def _chiama_modello(
     return None
 
 
-def _normalizza(
-    obj: dict, brief_dict: dict, completa_con_originale: bool = False
-) -> dict:
+def _proteggi(nuova: dict, originale: dict) -> dict:
+    """Rimette a posto quello che l'intervista non ha il diritto di toccare.
+
+    Alla chiusura il modello riemette la scheda intera, e un modello che
+    riscrive un oggetto grande tende a perderne dei pezzi — non per scelta, per
+    compressione. Il prompt dice di non toccare niente fuori dalle preferenze,
+    ma un'istruzione sola non basta per la cosa più preziosa che abbiamo. Tre
+    reti, meccaniche:
+
+    - `programma` torna sempre identico all'originale. È il documento dei
+      viaggiatori, non una preferenza; e se l'originale non ne aveva uno, il
+      modello non può inventarlo.
+    - I nomi, se c'erano e sono spariti, tornano.
+    - Le chiavi di primo livello mancanti si riprendono dall'originale: una
+      scheda riemessa a metà tornerebbe ai valori di default e il viaggio si
+      impoverirebbe senza nessun errore, e nessuno se ne accorgerebbe fino al
+      libro.
+    """
+    mancanti = [k for k in originale if k not in nuova]
+    out = {**originale, **nuova}
+    if mancanti:
+        print(f"Intervista: la scheda riemessa non aveva {', '.join(mancanti)} — ripresi.")
+
+    if originale.get("programma") is not None:
+        if out.get("programma") != originale["programma"]:
+            print("Intervista: il programma era stato toccato — rimesso com'era.")
+        out["programma"] = originale["programma"]
+    else:
+        out.pop("programma", None)
+
+    v_orig = originale.get("viaggiatori") or {}
+    v_nuovi = out.get("viaggiatori")
+    if isinstance(v_nuovi, dict) and v_orig.get("nomi") and not v_nuovi.get("nomi"):
+        out["viaggiatori"] = {**v_nuovi, "nomi": v_orig["nomi"]}
+    return out
+
+
+def _normalizza(obj: dict, brief_dict: dict) -> dict:
     """Ripulisce l'oggetto del modello nel contratto {azione, messaggio, opzioni, brief}."""
     messaggio = (obj.get("messaggio") or "").strip()
     if obj["azione"] == "fine":
         brief = obj.get("brief")
         if not isinstance(brief, dict) or not brief:
             brief = brief_dict
-        elif completa_con_originale:
-            # Rete sulla scheda parziale. Se il modello riemette solo i campi che
-            # ha toccato, i mancanti tornerebbero ai valori di default e il
-            # viaggio si impoverirebbe SENZA nessun errore: nessuno se ne
-            # accorge finché non legge il libro. I campi assenti si riprendono
-            # dall'originale.
-            mancanti = [k for k in brief_dict if k not in brief]
-            if mancanti:
-                brief = {**brief_dict, **brief}
-                print(
-                    "Correzione: la scheda riemessa non aveva "
-                    f"{', '.join(mancanti)} — ripresi dall'originale."
-                )
+        else:
+            brief = _proteggi(brief, brief_dict)
         return {"azione": "fine", "messaggio": messaggio, "opzioni": [], "brief": brief}
     opzioni = obj.get("opzioni")
     if isinstance(opzioni, list):
@@ -367,7 +391,7 @@ def _turno(
                 "opzioni": [],
                 "brief": brief_dict,
             }
-        return _normalizza(obj, brief_dict, completa_con_originale=True)
+        return _normalizza(obj, brief_dict)
 
     pavimento = _pavimento(brief_dict)
 

@@ -265,6 +265,26 @@ def _corpo_capitolo(corpo_md: str) -> tuple[str, str]:
     return occhiello, frammento
 
 
+def _lega_ultime(titolo: str) -> str:
+    """Unisce le ultime due parole di un titolo con uno spazio indivisibile.
+
+    Un titolo che va a capo lasciando una parola sola sull'ultima riga — «Il
+    Giappone in ottobre, per / due» — è il difetto tipografico più visibile che
+    esista, e cadeva proprio sul frontespizio. Legando le ultime due parole,
+    l'a capo porta con sé almeno una coppia.
+    """
+    testa, spazio, coda = titolo.rpartition(" ")
+    return f"{testa} {coda}" if spazio and testa else titolo
+
+
+def _elenco_nomi(nomi: list[str]) -> str:
+    """«Anna», «Anna e Marco», «Anna, Marco e Sofia»."""
+    puliti = [n.strip() for n in nomi or [] if n and n.strip()]
+    if len(puliti) <= 1:
+        return puliti[0] if puliti else ""
+    return ", ".join(puliti[:-1]) + " e " + puliti[-1]
+
+
 def _frontespizio(brief: Brief, titolo: str) -> str:
     luoghi = [t.luogo for t in brief.tappe]
     # Le tappe ripetute (si torna a Tokyo) si dicono una volta sola.
@@ -281,15 +301,21 @@ def _frontespizio(brief: Brief, titolo: str) -> str:
         righe.append(
             f"dal {_data_estesa(brief.date.inizio)} al {_data_estesa(brief.date.fine)}"
         )
+    # Sul frontespizio i loro nomi, se li abbiamo: «per Anna e Marco» è la
+    # promessa del sito mantenuta nella prima pagina che aprono. Il conteggio
+    # resta il ripiego, non la regola.
+    nomi = _elenco_nomi(brief.viaggiatori.nomi)
     n = brief.viaggiatori.adulti + len(brief.viaggiatori.bambini_eta)
-    if n:
+    if nomi:
+        righe.append(f"per {nomi}")
+    elif n:
         righe.append("per una persona" if n == 1 else f"per {n} persone")
 
     dati = "<br>".join(html.escape(r) for r in righe)
     return f"""
 <section class="frontespizio">
-  <div class="editore">Atelier del Viaggio</div>
-  <h1>{html.escape(titolo)}</h1>
+  <div class="editore">{html.escape(config.MARCHIO)}</div>
+  <h1>{html.escape(_lega_ultime(titolo))}</h1>
   <p class="sottotitolo">Una guida scritta per voi soli</p>
   <div class="filetto"></div>
   <p class="dati">{dati}</p>
@@ -317,17 +343,19 @@ def _indice(capitoli: list[dict]) -> str:
 
 
 def _colophon(brief: Brief) -> str:
+    # Scriveva «scritto per Tokyo e per le vostre date»: un libro dedicato a una
+    # città. È dedicato a chi viaggia.
+    per_chi = _elenco_nomi(brief.viaggiatori.nomi) or "voi"
     return f"""
 <section class="colophon">
   <h2>Nota finale</h2>
-  <p>Questo libro è stato scritto per {html.escape(
-      ', '.join(t.luogo for t in brief.tappe[:1]) or 'il vostro viaggio')} e per
-  le vostre date: non esiste in nessun'altra copia.</p>
+  <p>Questo libro è stato scritto per {html.escape(per_chi)}, per questo viaggio
+  e per queste date: non esiste in nessun'altra copia.</p>
   <p>Orari, aperture e prezzi cambiano, e nessuna guida stampata può seguirli.
   Le poche cose che le vostre date decidono al posto vostro le trovate nei
   riquadri «Gli immobili», in fondo ai capitoli sulle tappe: quelle vale la pena
   ricontrollarle prima di partire. Tutto il resto è vostro da improvvisare.</p>
-  <p>Atelier del Viaggio</p>
+  <p>{html.escape(config.MARCHIO)}</p>
 </section>
 """
 
@@ -380,7 +408,7 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
             f'<span class="tacca">{num}</span>'
             f'<div class="numero">Capitolo {num}</div>'
             f'<div class="filetto"></div>'
-            f'<h1>{html.escape(c["titolo"])}</h1>'
+            f'<h1>{html.escape(_lega_ultime(c["titolo"]))}</h1>'
             + (f'<p class="occhiello">{html.escape(occhiello)}</p>' if occhiello else "")
             + "</header>"
             f'<div class="corpo">{corpo}</div></section>'
