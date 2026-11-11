@@ -663,27 +663,45 @@ def _recupera_bozza(
     """
     if not cap_path.exists():
         return None
+
+    def rinuncia(motivo: str) -> None:
+        # Ogni rinuncia si dice: se la bozza c'era e non è stata ripresa, il log
+        # deve spiegare perché si sta pagando una riscrittura.
+        print(
+            f"Capitolo {assignment.numero:02d}: bozza su disco non riprendibile "
+            f"({motivo}) — si riscrive.",
+            file=sys.stderr,
+        )
+        return None
+
     try:
         grezzo = cap_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
+    except OSError as exc:
+        return rinuncia(f"illeggibile: {exc}")
     testo, titolo_ok = clean_chapter(grezzo)
     if not titolo_ok:
-        return None
+        return rinuncia("senza titolo")
     c = controlli_struttura(assignment, testo)
     if not c["immobili_ok"] and assignment.tipo != "tappa":
         ripulito = rimuovi_box_immobili(testo)
         if ripulito is not None:
             testo, c = ripulito, controlli_struttura(assignment, ripulito)
-    if c["parole"] < lo or not c["immobili_ok"]:
-        return None
+    if c["parole"] < lo:
+        return rinuncia(f"troppo corta: {c['parole']} parole, minimo {lo}")
+    if not c["immobili_ok"]:
+        return rinuncia("box GLI IMMOBILI fuori regola")
     if not c["meta_ok"]:
+        print(
+            f"Capitolo {assignment.numero:02d}: bozza su disco ({c['parole']} parole) "
+            "senza riassunto — lo ricostruisco.",
+            file=sys.stderr,
+        )
         meta_rec = salvage_meta(brief, assignment, testo)
         if meta_rec is None:
-            return None
+            return rinuncia("riassunto non ricostruibile")
         testo = _con_meta(testo, meta_rec)
         if not controlli_struttura(assignment, testo)["meta_ok"]:
-            return None
+            return rinuncia("riassunto ricostruito non valido")
 
     usage_log: list[dict] = []
     try:
