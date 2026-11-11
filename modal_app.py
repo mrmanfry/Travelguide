@@ -15,9 +15,11 @@ l'endpoint di avvio fa `spawn()` della funzione e restituisce subito un
 Prerequisiti di deploy:
     pip install modal
     modal setup                       # oppure MODAL_TOKEN_ID/SECRET in env
-    # Secret con la chiave Anthropic del motore (NON esposta al frontend):
-    modal secret create anthropic-guide GUIDE_ENGINE_KEY=sk-ant-...
     modal deploy modal_app.py
+
+La chiave Anthropic e gli altri segreti stanno nel secret Modal
+`anthropic-secret`, mai nel frontend: dove va ogni valore, e come rinnovare la
+chiave senza spegnere la porta, è in CHIAVI.md.
 
 Il deploy stampa l'URL pubblico dell'endpoint `web`, da passare al frontend.
 """

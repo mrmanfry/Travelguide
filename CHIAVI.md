@@ -20,6 +20,34 @@ Il motore legge `GUIDE_ENGINE_KEY`, ma `modal_app.py` fa da ponte e accetta anch
 `ANTHROPIC_API_KEY`. Non deve stare **mai** nel frontend né su Lovable: è la
 chiave che paga le generazioni.
 
+### Rinnovare la chiave (scaduta, revocata, credito finito)
+1. **Prima capire cosa è successo**, con la chiave in una variabile che non
+   compare a schermo né nella cronologia:
+   ```
+   read -s -p "Chiave Anthropic: " CHIAVE; echo
+   curl -s https://api.anthropic.com/v1/messages -H "x-api-key: $CHIAVE" \
+     -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+     -d '{"model":"claude-haiku-4-5","max_tokens":10,"messages":[{"role":"user","content":"ciao"}]}' | head -c 300; echo
+   unset CHIAVE
+   ```
+   `"type":"message"` = la chiave funziona · `credit balance is too low` = è il
+   credito, la chiave va bene e non si cambia niente · `authentication_error` =
+   chiave morta, se ne crea una nuova.
+2. Nella dashboard Modal, secret `anthropic-secret`, si cambia **solo**
+   `ANTHROPIC_API_KEY`.
+   - ⚠️ **Non** usare `modal secret create anthropic-secret ... --force`: riscrive
+     il secret intero e cancella `GATE_SECRET` e `SITO_BASE_URL`. La porta si
+     spegne (endpoint costosi aperti a chiunque) e le email smettono di partire.
+   - ⚠️ Se nel secret c'è **anche** `GUIDE_ENGINE_KEY`, vince lei: il ponte la legge
+     per prima. Va aggiornata o tolta, altrimenti si cambia la chiave e il motore
+     continua a usare quella vecchia.
+3. `modal deploy modal_app.py` — i container caldi tengono il valore vecchio.
+4. Verifica con `/health` (deve dire `attiva`) e con un turno di `/intervista`.
+   **Non** con `/coerenza`: quel controllo è fatto per non far mai cadere la
+   guida, ingoia gli errori e risponde `{"avvisi": []}` anche con la chiave
+   morta. Sembra un successo e non lo è.
+5. Revocare la chiave vecchia nella console Anthropic.
+
 ## 2. Modal
 | Cosa | Dove | Note |
 |---|---|---|
