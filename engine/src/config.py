@@ -53,7 +53,7 @@ MAX_TOKENS_INTERVISTA = 4000
 # nessuna riscrittura), affidato al modello più economico. ID verificato sui
 # docs Anthropic: Haiku 4.5 = "claude-haiku-4-5".
 MODEL_META_SALVAGE = "claude-haiku-4-5"
-MAX_TOKENS_META_SALVAGE = 2000
+MAX_TOKENS_META_SALVAGE = 4000  # un capitolo pieno di nomi tronca un JSON da 2000
 # Controllo di coerenza del brief, prima di spendere: cerca contraddizioni
 # interne e residui di un altro viaggio (un campo del form rimasto pieno). È
 # lettura critica di una scheda, non ricerca né scrittura: sta sul modello più

@@ -26,7 +26,7 @@ META_RE = re.compile(r"<!--META(.*?)META-->", re.DOTALL)
 CITE_RE = re.compile(r"</?cite[^>]*>")
 TITLE_RE = re.compile(r"^# ", re.MULTILINE)
 
-MAX_GEN_ATTEMPTS = 3  # 1 tentativo + 2 rigenerazioni per la lunghezza
+MAX_GEN_ATTEMPTS = 3  # 1 tentativo + 2 rigenerazioni (titolo, META, troppo corto, box)
 
 
 def make_client() -> anthropic.Anthropic:
@@ -490,49 +490,25 @@ def run_verification_call(
     return response, usage_log, info
 
 
-def salvage_meta(
-    brief: Brief, assignment: ChapterAssignment, chapter_text: str
-) -> dict | None:
-    """Ricostruisce il blocco META di un capitolo valido a cui manca solo il META.
-
-    Quando la prosa è valida (titolo, banda di lunghezza, box corretti) ma il
-    generatore ha omesso il blocco META finale, non si butta il capitolo: si
-    recupera. Un modello economico (Haiku), SENZA ricerca e SENZA riscrivere il
-    capitolo, legge il testo e restituisce solo il blocco META coi campi
-    ricavabili dalla prosa. Ritorna il META come dict (con `meta_ricostruito:
-    true`), oppure None se non è ricostruibile. Scrive l'usage in
-    cap_NN.meta.usage.json perché il costo del recupero entri nella misura.
-    """
-    client = make_client()
-    istruzioni = (
-        "Ricevi il TESTO di un capitolo di una guida di viaggio a cui manca il "
-        "blocco META finale. Il tuo compito NON è riscrivere il capitolo: è "
-        "produrre soltanto il blocco META che lo chiude, ricavandolo dal testo.\n\n"
-        "Restituisci ESCLUSIVAMENTE un blocco delimitato da `<!--META` e `META-->`, "
-        "senza nulla prima o dopo, contenente JSON valido con i campi:\n"
-        "- `riassunto`: 2-3 frasi che riassumono il capitolo, massimo 150 parole\n"
-        "- `claims_da_verificare`: le affermazioni fattuali specifiche presenti nel "
-        "testo (prezzi, orari, giorni di apertura o chiusura, nomi di locali)\n"
-        "- `assets`: lista di oggetti {tipo, titolo, sezione, deperibilita} ricavati "
-        "dalle sezioni e dai box del capitolo\n"
-        "- `verifica_incompleta`: false\n"
-        "- `fatti_verificati`: [] (lista vuota: il blocco è ricostruito a posteriori "
-        "dal testo, non da una verifica con ricerca)\n\n"
-        "Non inventare dati non presenti nel testo. Nessuna ricerca."
-    )
-    user_content = istruzioni + "\n\n---\n\nTESTO DEL CAPITOLO:\n\n" + chapter_text
+def _chiedi_meta(client, istruzioni: str, chapter_text: str, usi: list[dict]) -> dict | None:
+    """Una chiamata a Haiku per il META completo. None se non è leggibile."""
     try:
         response = client.messages.create(
             model=config.MODEL_META_SALVAGE,
             # Nessun output_config qui: Haiku 4.5 non accetta 'effort' e la
             # chiamata verrebbe rifiutata. Il compito è estrattivo, non serve.
             max_tokens=config.MAX_TOKENS_META_SALVAGE,
-            messages=[{"role": "user", "content": user_content}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": istruzioni + "\n\n---\n\nTESTO DEL CAPITOLO:\n\n" + chapter_text,
+                }
+            ],
         )
-    except Exception as exc:  # rete/API: il recupero fallisce, si torna a rigenerare
-        print(f"ATTENZIONE: salvataggio META fallito (errore API): {exc}", file=sys.stderr)
+    except Exception as exc:  # rete/API: si passa alla scialuppa più piccola
+        print(f"Recupero META: chiamata fallita ({exc}).", file=sys.stderr)
         return None
-
+    usi.append(response.usage.model_dump())
     grezzo = "".join(b.text for b in response.content if b.type == "text")
     meta = parse_meta(grezzo)
     if meta is None:
@@ -542,32 +518,185 @@ def salvage_meta(
             meta = obj if isinstance(obj, dict) else None
         except json.JSONDecodeError:
             meta = None
-    if not isinstance(meta, dict):
+    if not isinstance(meta, dict) or not str(meta.get("riassunto") or "").strip():
+        # Finora questo ramo era muto: il recupero falliva e non si sapeva
+        # perché. Il motivo tipico è una risposta troncata — un capitolo pieno
+        # di nomi produce un elenco lungo, e il JSON si interrompe a metà.
+        print(
+            f"Recupero META: risposta non leggibile (stop {response.stop_reason}, "
+            f"{len(grezzo)} caratteri).",
+            file=sys.stderr,
+        )
+        return None
+    return meta
+
+
+def _chiedi_riassunto(client, chapter_text: str, usi: list[dict]) -> str | None:
+    """La scialuppa più piccola: solo il riassunto, in prosa, senza JSON.
+
+    È l'unica cosa del META che serve davvero alla catena — il capitolo dopo
+    eredita il riassunto, non gli asset. Tre frasi in prosa non si troncano e non
+    si sbagliano di formato: se anche questa fallisce, il problema non è il META.
+    """
+    try:
+        response = client.messages.create(
+            model=config.MODEL_META_SALVAGE,
+            max_tokens=600,
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Riassumi in due o tre frasi, al massimo 120 parole, questo "
+                        "capitolo di una guida di viaggio: di cosa parla e cosa "
+                        "consiglia. Solo il riassunto, senza titolo, preamboli o "
+                        "formattazione.\n\n---\n\n" + chapter_text
+                    ),
+                }
+            ],
+        )
+    except Exception as exc:
+        print(f"Recupero riassunto: chiamata fallita ({exc}).", file=sys.stderr)
+        return None
+    usi.append(response.usage.model_dump())
+    testo = "".join(b.text for b in response.content if b.type == "text").strip()
+    return testo if len(testo) >= 40 else None
+
+
+def salvage_meta(
+    brief: Brief, assignment: ChapterAssignment, chapter_text: str
+) -> dict | None:
+    """Ricostruisce il blocco META di un capitolo a cui manca.
+
+    Il META è l'unica cosa che può fermare il libro: senza il riassunto, il
+    capitolo dopo non eredita nulla e la catena si spezza. Quindi non si butta un
+    capitolo scritto perché gli manca la coda: la si ricostruisce con Haiku,
+    SENZA ricerca e SENZA riscrivere niente, in due tentativi di ampiezza
+    decrescente. Prima il META completo; se non torna leggibile, il solo
+    riassunto con le liste vuote — che è tutto quello che serve alla catena.
+
+    Ritorna il META (con `meta_ricostruito: true`) oppure None. L'usage di tutte
+    le chiamate fatte va in cap_NN.meta.usage.json, anche quando falliscono: si
+    pagano lo stesso.
+    """
+    client = make_client()
+    istruzioni = (
+        "Ricevi il TESTO di un capitolo di una guida di viaggio a cui manca il "
+        "blocco META finale. Il tuo compito NON è riscrivere il capitolo: è "
+        "produrre soltanto il blocco META che lo chiude, ricavandolo dal testo.\n\n"
+        "Restituisci ESCLUSIVAMENTE un blocco delimitato da `<!--META` e `META-->`, "
+        "senza nulla prima o dopo, contenente JSON valido con i campi:\n"
+        "- `riassunto`: 2-3 frasi che riassumono il capitolo, massimo 120 parole\n"
+        "- `claims_da_verificare`: al massimo 10 affermazioni che, se sbagliate, "
+        "rovinerebbero il viaggio — dove si trova un luogo, se un collegamento "
+        "esiste, fatti storici, chiusure e stagioni legate alle date. Niente "
+        "prezzi né orari.\n"
+        "- `assets`: al massimo 12 oggetti {tipo, titolo, sezione, deperibilita} "
+        "ricavati dalle sezioni e dai box del capitolo\n"
+        "- `verifica_incompleta`: false\n"
+        "- `fatti_verificati`: [] (lista vuota: il blocco è ricostruito a posteriori "
+        "dal testo, non da una verifica con ricerca)\n\n"
+        "Non inventare dati non presenti nel testo. Nessuna ricerca. Liste brevi: "
+        "meglio un blocco corto e completo che uno lungo e interrotto."
+    )
+    usi: list[dict] = []
+    meta = _chiedi_meta(client, istruzioni, chapter_text, usi)
+    if meta is None:
+        riassunto = _chiedi_riassunto(client, chapter_text, usi)
+        if riassunto is not None:
+            meta = {"riassunto": riassunto, "claims_da_verificare": [], "assets": []}
+            print(
+                f"Capitolo {assignment.numero:02d}: META completo non recuperabile, "
+                "ricostruito il solo riassunto.",
+                file=sys.stderr,
+            )
+
+    if usi:
+        usage_path = chapter_paths(brief, assignment)[0].with_name(
+            f"cap_{assignment.numero:02d}.meta.usage.json"
+        )
+        usage_path.write_text(
+            json.dumps(
+                {
+                    "model": config.MODEL_META_SALVAGE,
+                    "truncated": False,
+                    "retried": len(usi) > 1,
+                    "chiamate": usi,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    if meta is None:
         return None
 
     meta["meta_ricostruito"] = True
     meta["verifica_incompleta"] = False
     meta.setdefault("fatti_verificati", [])
-
-    # Usage del recupero, per la misura dei costi (schema uguale agli altri artefatti).
-    usage_path = chapter_paths(brief, assignment)[0].with_name(
-        f"cap_{assignment.numero:02d}.meta.usage.json"
-    )
-    usage_path.write_text(
-        json.dumps(
-            {
-                "model": response.model,
-                "stop_reason": response.stop_reason,
-                "truncated": response.stop_reason == "max_tokens",
-                "retried": False,
-                "chiamate": [response.usage.model_dump()],
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
     return meta
+
+
+def _con_meta(testo: str, meta: dict) -> str:
+    """Accoda un blocco META ricostruito alla prosa."""
+    return (
+        testo.rstrip()
+        + "\n\n<!--META\n"
+        + json.dumps(meta, ensure_ascii=False, indent=2)
+        + "\nMETA-->"
+    )
+
+
+def _recupera_bozza(
+    brief: Brief, assignment: ChapterAssignment, cap_path: Path, usage_path: Path, lo: int
+) -> tuple[str, list[dict]] | None:
+    """Riprende il capitolo già scritto da un run precedente, invece di riscriverlo.
+
+    Un libro si ferma su un capitolo — per il riassunto mancante, per il tetto di
+    spesa — e il testo resta su disco. Alla ripresa lo si rigenerava da zero:
+    un'altra scrittura su Opus con tutte le sue ricerche, per un capitolo che
+    c'era già. Qui lo si rilegge e lo si sottopone agli STESSI controlli di un
+    capitolo appena scritto: titolo, lunghezza minima, box GLI IMMOBILI, META
+    (ricostruito con Haiku se manca). Se passa, si va al critico come sempre;
+    se no, si riscrive. Non si salta nessun controllo: si salta solo la spesa.
+
+    Ritorna (testo, usage della scrittura originale) oppure None.
+    """
+    if not cap_path.exists():
+        return None
+    try:
+        grezzo = cap_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    testo, titolo_ok = clean_chapter(grezzo)
+    if not titolo_ok:
+        return None
+    c = controlli_struttura(assignment, testo)
+    if not c["immobili_ok"] and assignment.tipo != "tappa":
+        ripulito = rimuovi_box_immobili(testo)
+        if ripulito is not None:
+            testo, c = ripulito, controlli_struttura(assignment, ripulito)
+    if c["parole"] < lo or not c["immobili_ok"]:
+        return None
+    if not c["meta_ok"]:
+        meta_rec = salvage_meta(brief, assignment, testo)
+        if meta_rec is None:
+            return None
+        testo = _con_meta(testo, meta_rec)
+        if not controlli_struttura(assignment, testo)["meta_ok"]:
+            return None
+
+    usage_log: list[dict] = []
+    try:
+        vecchio = json.loads(usage_path.read_text(encoding="utf-8"))
+        usage_log = list(vecchio.get("chiamate") or [])
+    except (OSError, ValueError):
+        pass
+    print(
+        f"Capitolo {assignment.numero:02d}: ripreso dalla bozza già scritta "
+        f"({c['parole']} parole) invece di riscriverlo.",
+        file=sys.stderr,
+    )
+    return testo, usage_log
 
 
 def generate_chapter(
@@ -610,15 +739,33 @@ def generate_chapter(
     # Valori dell'ultimo tentativo, tenuti per il salvataggio finale.
     response = None
     usage_log: list[dict] = []
+    # TUTTE le risposte di TUTTI i tentativi. Prima si teneva solo l'ultimo:
+    # un capitolo riscritto tre volte risultava costare come una, e il tetto di
+    # spesa contava un terzo di quello che la fattura poi addebitava.
+    usage_totale: list[dict] = []
     testo = ""
+    titolo_ok = False
 
     # `valido` = l'ultima versione salvata ha superato TUTTI i controlli
-    # strutturali (titolo, META, banda, box). Se resta False dopo i tentativi, il
-    # capitolo è degenere e il gate a valle non deve nemmeno chiamare il critico.
+    # strutturali (titolo, META, banda, box). È un'informazione per i rapporti:
+    # a fermare il libro è solo `consegnabile`, cioè il META.
     valido = False
-    for tentativo in range(1, MAX_GEN_ATTEMPTS + 1):
+
+    # Prima di spendere: se un run precedente si è fermato su questo capitolo, il
+    # testo è già su disco. Lo si riprende, se regge gli stessi controlli.
+    recuperato = _recupera_bozza(brief, assignment, cap_path, usage_path, lo)
+    if recuperato is not None:
+        testo, usage_log = recuperato
+        titolo_ok = True
+        c = controlli_struttura(assignment, testo)
+        valido = c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]
+    tentativi = range(1, MAX_GEN_ATTEMPTS + 1) if recuperato is None else range(0)
+
+    for tentativo in tentativi:
         user_content = base_user + extra_note
         response, usage_log = run_one_generation(client, system, tools, user_content)
+        usage_totale.extend(usage_log)
+        troncato = response.stop_reason == "max_tokens"
         grezzo = "".join(block.text for block in response.content if block.type == "text")
 
         testo, titolo_ok = clean_chapter(grezzo)
@@ -653,12 +800,14 @@ def generate_chapter(
                             file=sys.stderr,
                         )
             parole = c["parole"]
-            # Valido solo se rientra nella banda, porta un META parsabile (senza
-            # META il controllo ricerche è inerte e la libreria asset resta vuota)
-            # E rispetta la regola del box GLI IMMOBILI (obbligatorio nelle tappe,
-            # vietato altrove).
-            if c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]:
-                valido = True
+            # Si accetta quando c'è il META, il box è giusto e il capitolo NON è
+            # troppo corto. Troppo lungo si consegna: novanta parole oltre la
+            # banda non valgono un'altra scrittura su Opus con tutte le ricerche
+            # — e il testo scritto in più è testo che il lettore riceve. Troppo
+            # corto invece si riscrive: un capitolo smilzo è un difetto vero.
+            corto = parole < lo
+            if not corto and c["meta_ok"] and c["immobili_ok"]:
+                valido = c["lunghezza_ok"]
                 break
             # Recupero del META, tentato ogni volta che manca — non più solo
             # quando è l'unico problema. Il META è l'unica cosa che può fermare
@@ -668,12 +817,7 @@ def generate_chapter(
             if not c["meta_ok"]:
                 meta_rec = salvage_meta(brief, assignment, testo)
                 if meta_rec is not None:
-                    blocco = (
-                        "<!--META\n"
-                        + json.dumps(meta_rec, ensure_ascii=False, indent=2)
-                        + "\nMETA-->"
-                    )
-                    testo = testo.rstrip() + "\n\n" + blocco
+                    testo = _con_meta(testo, meta_rec)
                     c = controlli_struttura(assignment, testo)
                     if c["meta_ok"]:
                         print(
@@ -681,11 +825,14 @@ def generate_chapter(
                             f"{config.MODEL_META_SALVAGE}.",
                             file=sys.stderr,
                         )
-                    if c["lunghezza_ok"] and c["immobili_ok"] and c["meta_ok"]:
-                        valido = True
+                    if not corto and c["immobili_ok"] and c["meta_ok"]:
+                        valido = c["lunghezza_ok"]
                         break
-            if not c["lunghezza_ok"]:
-                verso = "più lungo" if parole < lo else "più corto"
+            # La nota sulla lunghezza solo se serve davvero: troppo corto, o
+            # troppo lungo E senza META — perché lì la lunghezza è spesso la
+            # causa: il capitolo ha esaurito lo spazio prima di arrivare al META.
+            if corto or (parole > hi and not c["meta_ok"]):
+                verso = "più lungo" if corto else "più corto"
                 note_parti.append(
                     f"REVISIONE LUNGHEZZA: il tentativo precedente era di {parole} parole, "
                     f"fuori dalla banda ammessa ({lo}-{hi}) per il budget di {budget}. "
@@ -694,7 +841,14 @@ def generate_chapter(
                 )
             if not c["meta_ok"]:
                 note_parti.append(
-                    "BLOCCO META MANCANTE O NON PARSABILE: il tentativo precedente non "
+                    (
+                        "RISPOSTA TRONCATA: il tentativo precedente ha esaurito lo spazio "
+                        "prima di arrivare al blocco META. Scrivi più asciutto e chiudi "
+                        "sempre col META. "
+                        if troncato
+                        else ""
+                    )
+                    + "BLOCCO META MANCANTE O NON PARSABILE: il tentativo precedente non "
                     "conteneva un blocco META valido. Devi EMETTERE il blocco nel formato "
                     "richiesto — delimitato da `<!--META` e `META-->`, con dentro JSON valido "
                     "(riassunto, fatti_verificati, claims_da_verificare, assets) — non "
@@ -714,15 +868,17 @@ def generate_chapter(
                     "tentativi: il file non è un capitolo valido."
                 )
             else:
-                if not c["lunghezza_ok"]:
+                if parole < lo:
                     warnings.append(
-                        f"Lunghezza fuori banda dopo {MAX_GEN_ATTEMPTS} tentativi: "
+                        f"Troppo corto dopo {MAX_GEN_ATTEMPTS} tentativi: "
                         f"{parole} parole (banda ammessa {lo}-{hi} per budget {budget})."
                     )
                 if not c["meta_ok"]:
                     warnings.append(
                         f"Blocco META assente o non parsabile dopo {MAX_GEN_ATTEMPTS} "
-                        "tentativi: il capitolo è salvato come grezzo ma non è valido "
+                        "tentativi"
+                        + (", con la risposta troncata per esaurimento dello spazio" if troncato else "")
+                        + ": il capitolo è salvato come grezzo ma non è valido "
                         "(controllo ricerche inerte, nessun asset estratto)."
                     )
                 if not c["immobili_ok"]:
@@ -736,6 +892,16 @@ def generate_chapter(
                             f"Box GLI IMMOBILI presente dopo {MAX_GEN_ATTEMPTS} tentativi in "
                             f"un capitolo di tipo '{assignment.tipo}' (non tappa): è vietato."
                         )
+
+    # Più lungo della banda: si consegna, e lo si dice in da_rivedere.md — è un
+    # dato da conoscere, non un difetto che valga una riscrittura.
+    if titolo_ok:
+        finale = controlli_struttura(assignment, testo)
+        if finale["parole"] > hi:
+            warnings.append(
+                f"Più lungo della banda: {finale['parole']} parole (banda {lo}-{hi} per "
+                f"budget {budget}). Consegnato così, non riscritto."
+            )
 
     # Segnali sull'ultimo tentativo salvato. NOTA: la presenza di voci in
     # `claims_da_verificare` NON è un difetto — per progetto è la lista che lo
@@ -775,27 +941,35 @@ def generate_chapter(
     }
 
     cap_path.write_text(testo, encoding="utf-8")
-    usage_path.write_text(
-        json.dumps(
-            {
-                "model": response.model,
-                "stop_reason": response.stop_reason,
-                "truncated": response.stop_reason == "max_tokens",
-                "retried": False,
-                "chiamate": usage_log,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    # Il file d'uso si riscrive solo se si è scritto davvero. Un capitolo ripreso
+    # dalla bozza tiene l'usage della scrittura originale: quel costo è stato
+    # pagato, e cancellarlo lo farebbe sparire dal conto.
+    if response is not None:
+        usage_path.write_text(
+            json.dumps(
+                {
+                    "model": response.model,
+                    "stop_reason": response.stop_reason,
+                    "truncated": response.stop_reason == "max_tokens",
+                    "retried": len(usage_totale) > len(usage_log),
+                    "chiamate": usage_totale,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     meta_match = META_RE.search(testo)
     if meta_match:
         capture_assets(brief, assignment, meta_match.group(1).strip())
 
+    warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
+    if not warnings and warning_path.exists():
+        # Il rapporto di un run precedente non vale più: questo capitolo l'ha
+        # superato. Lasciarlo direbbe «non consegnabile» di un capitolo che lo è.
+        warning_path.unlink()
     if warnings:
-        warning_path = cap_path.with_name(f"cap_{assignment.numero:02d}.WARNING.txt")
         intestazione = (
             "CAPITOLO CONSEGNATO CON DIFETTI DI FORMA — da rivedere:"
             if meta is not None
