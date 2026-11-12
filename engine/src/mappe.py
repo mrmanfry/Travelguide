@@ -69,7 +69,11 @@ def mappe_del_libro(brief_id: str) -> dict[int, dict]:
             continue
         png = j.with_suffix(".png")
         if dati.get("luoghi") and png.exists():
+            from src.mappa_disegno import nome_tavola
+
             dati["png"] = str(png)
+            dati["tavole_png"] = [str(nome_tavola(png, i)) for i in range(int(dati.get("tavole") or 1))
+                                  if nome_tavola(png, i).exists()]
             pronte[int(dati["numero"])] = dati
     return pronte
 
@@ -113,20 +117,32 @@ def _consegna(png: Path, js: Path, esito: dict) -> dict:
     che elenca meno luoghi), resta la vecchia. Il disegno nuovo sta in un file
     provvisorio e prende il posto del vecchio solo a lavoro finito.
     """
+    from src.mappa_disegno import nome_tavola
+
     nuovo = _provvisorio(png)
     if esito.get("saltata") and _buona(png, js):
-        nuovo.unlink(missing_ok=True)
+        _butta_provvisori(png)
         esito["tenuta_la_precedente"] = True
         return esito
     js.parent.mkdir(parents=True, exist_ok=True)
     tmp = js.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(esito, ensure_ascii=False, indent=2), encoding="utf-8")
-    if nuovo.exists():
-        os.replace(nuovo, png)
-    elif esito.get("saltata"):
-        png.unlink(missing_ok=True)
+    disegnata = nuovo.exists()
+    for i in range(8):
+        provvisoria, finale = nome_tavola(nuovo, i), nome_tavola(png, i)
+        if provvisoria.exists():
+            os.replace(provvisoria, finale)
+        elif disegnata or esito.get("saltata"):
+            finale.unlink(missing_ok=True)  # una tavola che il nuovo disegno non ha più
     os.replace(tmp, js)
     return esito
+
+
+def _butta_provvisori(png: Path) -> None:
+    from src.mappa_disegno import nome_tavola
+
+    for i in range(8):
+        nome_tavola(_provvisorio(png), i).unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------- cache
@@ -304,8 +320,12 @@ def _compatta(el: dict) -> dict | None:
     return None
 
 
-def dati_osm(rettangoli: list[tuple[float, float, float, float]]) -> list[dict]:
-    """Strade, parchi, acqua, costa e quartieri nei rettangoli (sud, ovest, nord, est)."""
+def dati_osm(rettangoli: list[tuple[float, float, float, float]], sommario: bool = False) -> list[dict]:
+    """Strade, parchi, acqua, costa e quartieri nei rettangoli (sud, ovest, nord, est).
+
+    `sommario`: solo costa, acque e grandi strade, per la mappina d'orientamento
+    di tutta la città — pochi elementi su un'area grande.
+    """
     elementi = []
     for s, w, n, e in rettangoli:
         ms, mw = (n - s) * 0.05, (e - w) * 0.05
@@ -316,7 +336,17 @@ def dati_osm(rettangoli: list[tuple[float, float, float, float]]) -> list[dict]:
         classi = ("motorway|trunk|primary|secondary|tertiary|residential|unclassified|pedestrian"
                   if larghezza_km <= 6 else "motorway|trunk|primary|secondary|tertiary|pedestrian")
         bbox = f"{s},{w},{n},{e}"
-        query = f"""[out:json][timeout:240];
+        if sommario:
+            query = f"""[out:json][timeout:240];
+(
+  way["highway"~"^(motorway|trunk|primary)$"]({bbox});
+  way["natural"="water"]({bbox});
+  relation["natural"="water"]({bbox});
+  way["natural"="coastline"]({bbox});
+);
+out geom;"""
+        else:
+            query = f"""[out:json][timeout:240];
 (
   way["highway"~"^({classi})$"]({bbox});
   way["leisure"="park"]({bbox});
@@ -417,7 +447,7 @@ def luoghi_dal_capitolo(client, corpo_md: str, luogo: str, sezioni: list[tuple[s
 def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, luogo: str,
                            albergo: str | None) -> dict:
     """Mappa di un capitolo: scrive cap_NN.png e cap_NN.json. Ritorna il json."""
-    from src.mappa_disegno import disegna, rettangoli_geografici
+    from src.mappa_disegno import disegna, rettangoli_geografici, rettangolo_insieme
 
     png, js = file_mappa(brief_id, numero)
     sezioni = sezioni_del_capitolo(corpo_md)
@@ -452,8 +482,12 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
         return chiudi(f"solo {len(trovati)} luoghi trovati: troppo pochi per una pagina")
 
     osm = dati_osm(rettangoli_geografici(trovati))
+    insieme = rettangolo_insieme(trovati)
+    osm_insieme = dati_osm([insieme], sommario=True) if insieme else None
     testo = corpo_md + "\n" + "\n".join(t for _, t in sezioni)
-    numerati = disegna(osm, trovati, [r for r, _ in sezioni], testo, _provvisorio(png))
+    numerati, scritti = disegna(osm, trovati, [r for r, _ in sezioni], testo, _provvisorio(png),
+                                osm_insieme)
+    esito["tavole"] = len(scritti)
     esito["luoghi"] = [{k: l[k] for k in ("numero", "etichetta", "sezione", "tipo", "lat", "lon",
                                           "trovato_con") if k in l} for l in numerati]
     return chiudi()
@@ -488,7 +522,7 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
                       f"${esito['costo_usd']:.3f}" + (f"; fuori mappa: {mancanti}" if mancanti else "") + ".")
         except Exception as exc:  # una pagina in meno, mai un libro in meno
             print(f"Mappa del viaggio non riuscita: {exc!r}", file=sys.stderr)
-            _provvisorio(file_paese(brief.brief_id)[0]).unlink(missing_ok=True)
+            _butta_provvisori(file_paese(brief.brief_id)[0])
     for c in libro.get("capitoli") or []:
         a = per_numero.get(c["numero"])
         if c.get("tipo") != "tappa" or a is None or a.tappa is None:
@@ -520,7 +554,7 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
         except Exception as exc:  # una mappa in meno, mai un libro in meno
             print(f"Mappa capitolo {c['numero']:02d} non riuscita: {exc!r}", file=sys.stderr)
             try:
-                _provvisorio(png).unlink(missing_ok=True)
+                _butta_provvisori(png)
             except OSError:
                 pass
     return esiti

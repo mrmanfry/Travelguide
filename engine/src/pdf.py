@@ -347,7 +347,9 @@ def _pagine_mappa(capitolo: dict, mappa: dict) -> str:
 
     Le due pagine si guardano: la legenda comincia sempre su una pagina pari,
     così il numero sul puntino e il nome nella legenda stanno davanti agli occhi
-    insieme, senza voltare pagina. Costa al massimo una pagina bianca.
+    insieme, senza voltare pagina. Costa al massimo una pagina bianca. Una città
+    in due metà ha una seconda tavola, sulla pagina pari dopo: guarda l'apertura
+    del capitolo, e nella mappina in un angolo mostra dove sta rispetto alla prima.
     """
     titoli = dict((r, t) for r, t in mappa.get("sezioni") or [])
     luoghi = mappa.get("luoghi") or []
@@ -377,7 +379,8 @@ def _pagine_mappa(capitolo: dict, mappa: dict) -> str:
         '<p class="occhio">La mappa del capitolo</p>'
         f'<p class="titolo-mappa">{html.escape(_lega_ultime(capitolo["titolo"]))}</p>'
         f'<div class="colonne">{"".join(gruppi)}</div></section>'
-        f'<section class="tavola-mappa"><img src="{Path(mappa["png"]).as_uri()}" alt=""></section>'
+        + "".join(f'<section class="tavola-mappa"><img src="{Path(t).as_uri()}" alt=""></section>'
+                  for t in (mappa.get("tavole_png") or [mappa["png"]]))
     )
 
 

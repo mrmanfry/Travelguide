@@ -50,6 +50,7 @@ COLLEGAMENTO = 1.8 * KM   # due luoghi più vicini di così stanno nello stesso 
 LONTANO = 3.0 * KM        # un gruppo più distante di così va nel riquadro
 RAGGIO_MM = 1.75          # il puntino
 RIQUADRO_MM = (38, 46)    # il riquadro per il gruppo lontano
+RIQUADRO_MAX_LUOGHI = 4   # oltre, non è un gruppetto lontano: è un'altra metà della città
 
 
 class Proiezione:
@@ -329,12 +330,39 @@ def _verso(dx: float, dy: float) -> str:
         int(((ang + 22.5) % 360) // 45)]
 
 
+def _cornice_sicura(punti: list, larghezza_mm: float, altezza_mm: float, margine_km: float):
+    """La cornice con abbastanza aria intorno: la zona tratteggiata di un luogo
+    sul bordo, e il suo numero romano sopra, devono stare dentro la mappa."""
+    margine = margine_km * KM
+    for _ in range(3):
+        c = _cornice(punti, larghezza_mm, altezza_mm, margine)
+        upm = (c[2] - c[0]) / larghezza_mm
+        serve = 0.3 * KM + 6 * upm  # il bordo della zona, più il suo numero
+        if serve <= margine:
+            return c
+        margine = serve
+    return c
+
+
+def nome_tavola(base: Path, indice: int) -> Path:
+    """cap_04.png, poi cap_04_b.png per la seconda tavola dello stesso capitolo."""
+    return base if indice == 0 else base.with_name(f"{base.stem}_{'abcdefgh'[indice]}{base.suffix}")
+
+
 def componi(luoghi: list[dict]) -> dict:
-    """Decide cosa va nella mappa e cosa nel riquadro, e le due cornici.
+    """Decide le tavole: quante, cosa c'è in ognuna, e le loro cornici.
+
+    - Una tavola sola quando i luoghi stanno insieme.
+    - Una tavola con un riquadro quando lontano c'è solo un gruppetto (Harlem
+      da Midtown): il riquadro è sempre uno zoom AVANTI su quel gruppetto.
+    - Due tavole quando la città si divide in due metà vere (Tokyo: Shibuya e
+      Shinjuku da una parte, Asakusa, Ginza e Tsukiji dall'altra). Stipare una
+      metà in un riquadro la rimpicciolisce invece di ingrandirla, e il
+      lettore non capisce più come le due mappe stiano insieme.
 
     Sta a sé perché serve due volte: al disegno, e prima ancora a chi scarica i
     dati di OpenStreetMap, che deve chiederli solo per i rettangoli che si
-    vedranno — non per tutto quello che sta in mezzo a due gruppi lontani.
+    vedranno.
     """
     luoghi = [dict(l) for l in luoghi if "lat" in l and "lon" in l]
     if not luoghi:
@@ -345,93 +373,74 @@ def componi(luoghi: list[dict]) -> dict:
     numerati = [l for l in luoghi if l["tipo"] != "albergo"]
     for n, l in enumerate(numerati, 1):
         l["numero"] = n
+    albergo = next((l["xy"] for l in luoghi if l["tipo"] == "albergo"), None)
 
-    # Il gruppo principale decide la scala; i gruppi lontani vanno nel riquadro.
+    # Il gruppo più ricco (a parità, quello dove si dorme) e i gruppi entro
+    # LONTANO da lui fanno la tavola principale. Un passo solo, non a catena: a
+    # catena Manhattan si salda da Battery Park a Harlem e la mappa si perde.
     tutti_i_gruppi = gruppi([l["xy"] for l in luoghi], COLLEGAMENTO)
-    principale = max(tutti_i_gruppi, key=len)
-    vicini, lontani = list(principale), []
+    principale = max(tutti_i_gruppi, key=lambda g: (len(g), albergo in g))
+    vicini, resto = list(principale), []
     for g in tutti_i_gruppi:
         if g is principale:
             continue
         d = min(_distanza(a, b) for a in g for b in principale)
-        (vicini if d <= LONTANO else lontani).extend(g)
-    in_mappa = [l for l in luoghi if l["xy"] in vicini]
-    nel_riquadro = [l for l in luoghi if l["xy"] in lontani]
-    cornice = _cornice(vicini, LARGHEZZA_MM, ALTEZZA_MM, 0.45 * KM)
-    cornice_r = (_cornice([l["xy"] for l in nel_riquadro], RIQUADRO_MM[0], RIQUADRO_MM[1], 0.5 * KM)
-                 if nel_riquadro else None)
-    return {"pr": pr, "luoghi": luoghi, "numerati": numerati, "in_mappa": in_mappa,
-            "nel_riquadro": nel_riquadro, "cornice": cornice, "cornice_riquadro": cornice_r}
+        (vicini if d <= LONTANO else resto).extend(g)
+    qui = [l for l in luoghi if l["xy"] in vicini]
+    la = [l for l in luoghi if l["xy"] in resto]
+
+    def tavola(ls, riquadro=None):
+        return {"luoghi": ls, "cornice": _cornice_sicura([l["xy"] for l in ls], LARGHEZZA_MM,
+                                                          ALTEZZA_MM, 0.45),
+                "riquadro": riquadro}
+
+    if not la:
+        tavole = [tavola(qui)]
+    else:
+        prima = tavola(qui)
+        tavole = None
+        if len(la) <= RIQUADRO_MAX_LUOGHI and len(la) <= 0.35 * len(luoghi):
+            cr = _cornice_sicura([l["xy"] for l in la], RIQUADRO_MM[0], RIQUADRO_MM[1], 0.4)
+            upm = (prima["cornice"][2] - prima["cornice"][0]) / LARGHEZZA_MM
+            upm_r = (cr[2] - cr[0]) / RIQUADRO_MM[0]
+            if upm_r <= upm:  # solo se ingrandisce: un riquadro che rimpicciolisce confonde
+                prima["riquadro"] = {"luoghi": la, "cornice": cr}
+                tavole = [prima]
+        if tavole is None:
+            tavole = [prima, tavola(la)]
+
+    insieme = None
+    if len(tavole) > 1:
+        xs = [v for t in tavole for v in (t["cornice"][0], t["cornice"][2])]
+        ys = [v for t in tavole for v in (t["cornice"][1], t["cornice"][3])]
+        m = 0.04 * max(max(xs) - min(xs), max(ys) - min(ys))
+        insieme = (min(xs) - m, min(ys) - m, max(xs) + m, max(ys) + m)
+    return {"pr": pr, "luoghi": luoghi, "numerati": numerati, "tavole": tavole, "insieme": insieme}
+
+
+def _in_gradi(pr: Proiezione, c) -> tuple[float, float, float, float]:
+    x0, y0, x1, y1 = c
+    return (y0, x0 / pr.k, y1, x1 / pr.k)
 
 
 def rettangoli_geografici(luoghi: list[dict]) -> list[tuple[float, float, float, float]]:
-    """I rettangoli (sud, ovest, nord, est) che la mappa mostrerà, in gradi."""
+    """I rettangoli (sud, ovest, nord, est) che le tavole mostreranno, in gradi."""
     c = componi(luoghi)
-    k = c["pr"].k
     fuori = []
-    for cr in (c["cornice"], c["cornice_riquadro"]):
-        if cr is not None:
-            x0, y0, x1, y1 = cr
-            fuori.append((y0, x0 / k, y1, x1 / k))
+    for t in c["tavole"]:
+        fuori.append(_in_gradi(c["pr"], t["cornice"]))
+        if t["riquadro"]:
+            fuori.append(_in_gradi(c["pr"], t["riquadro"]["cornice"]))
     return fuori
 
 
-def disegna(osm: list, luoghi: list[dict], sezioni: list[str], testo_capitolo: str,
-            destinazione: Path, attribuzione: str = "© OpenStreetMap contributors") -> list[dict]:
-    """Disegna la mappa e la scrive in `destinazione` (PNG). Ritorna i luoghi numerati.
-
-    `luoghi`: dizionari con lat, lon, sezione, etichetta, tipo ("luogo" | "albergo").
-    I luoghi sono numerati nell'ordine in cui arrivano; l'albergo porta una H.
-    """
+def rettangolo_insieme(luoghi: list[dict]) -> tuple[float, float, float, float] | None:
+    """Con due tavole, il rettangolo dell'insieme per la mappina d'orientamento."""
     c = componi(luoghi)
-    pr, luoghi, numerati = c["pr"], c["luoghi"], c["numerati"]
-    in_mappa, nel_riquadro, cornice = c["in_mappa"], c["nel_riquadro"], c["cornice"]
-    testo = testo_capitolo.lower()
-    geo = _leggi_osm(osm, pr)
+    return _in_gradi(c["pr"], c["insieme"]) if c["insieme"] else None
 
-    upm = (cornice[2] - cornice[0]) / LARGHEZZA_MM
-    fig = plt.figure(figsize=(LARGHEZZA_MM * MM, ALTEZZA_MM * MM), dpi=400)
-    ax = fig.add_axes([0, 0, 1, 1])
-    _fondo(ax, geo, cornice)
-    _zone(ax, in_mappa, sezioni, upm)
-    _quartieri(ax, geo, testo, in_mappa, cornice, upm)
-    _puntini(ax, in_mappa, upm)
 
-    occupati: set[str] = set()
-    if nel_riquadro:
-        rw, rh = RIQUADRO_MM
-        cx = sum(l["xy"][0] for l in nel_riquadro) / len(nel_riquadro)
-        cy = sum(l["xy"][1] for l in nel_riquadro) / len(nel_riquadro)
-        mx, my = (cornice[0] + cornice[2]) / 2, (cornice[1] + cornice[3]) / 2
-        # A parità di puntini coperti, il riquadro va dalla parte in cui il
-        # gruppo sta davvero: Harlem in alto, non in basso a sinistra.
-        versi = {"ad": (1, 1), "as": (-1, 1), "bd": (1, -1), "bs": (-1, -1)}
-        candidati = sorted(versi, key=lambda a: -(versi[a][0] * (cx - mx) + versi[a][1] * (cy - my)))
-        angolo = _angolo_libero(cornice, in_mappa, upm, rw, rh, candidati, occupati)
-        occupati.add(angolo)
-        ox, oy = _impronta(cornice, angolo, upm, rw, rh)
-        axr = fig.add_axes([(ox - cornice[0]) / (cornice[2] - cornice[0]),
-                            (oy - cornice[1]) / (cornice[3] - cornice[1]),
-                            rw / LARGHEZZA_MM, rh / ALTEZZA_MM])
-        cr = c["cornice_riquadro"]
-        upm_r = (cr[2] - cr[0]) / rw
-        _fondo(axr, geo, cr)
-        _zone(axr, nel_riquadro, sezioni, upm_r)
-        _quartieri(axr, geo, testo, nel_riquadro, cr, upm_r)
-        _puntini(axr, nel_riquadro, upm_r)
-        axr.add_patch(plt.Rectangle((cr[0], cr[1]), cr[2] - cr[0], cr[3] - cr[1], fill=False,
-                                    edgecolor=INCH2, linewidth=0.7, zorder=20))
-        # Quanto è lontano e da che parte: il riquadro non è in scala con la mappa.
-        km = max(1, round(_distanza((cx, cy), (mx, my)) / KM))
-        etichetta = f"{km} km a {_verso(cx - mx, cy - my)}"
-        sopra = "b" in angolo  # in basso, la scritta va sopra il riquadro
-        ty = oy + rh * upm + 1.2 * upm if sopra else oy - 1.2 * upm
-        ax.text(ox + rw * upm / 2, ty, _spaziato(etichetta), ha="center",
-                va="bottom" if sopra else "top", fontfamily="Archivo", fontweight="medium",
-                fontsize=4.4, color=INCH2, zorder=21)
-
-    # Scala e nord insieme, nell'angolo più libero in basso.
-    angolo = _angolo_libero(cornice, in_mappa, upm, 26, 12, ["bs", "bd"], occupati)
+def _scala_e_nord(ax, cornice, upm: float, angolo: str) -> None:
     sx, sy = _impronta(cornice, angolo, upm, 26, 12)
     sy += 3 * upm
     ax.plot([sx, sx + KM], [sy, sy], color=INCH2, linewidth=0.8, zorder=12)
@@ -444,20 +453,138 @@ def disegna(osm: list, luoghi: list[dict], sezioni: list[str], testo_capitolo: s
                 arrowprops={"arrowstyle": "-|>", "color": INCH2, "linewidth": 0.6}, zorder=12)
     ax.text(nx, sy + 5 * upm, "N", ha="center", va="bottom", fontfamily="Archivo",
             fontweight="semibold", fontsize=5.5, color=INCH2, zorder=12)
-    x0, y0, x1, y1 = cornice
-    ax.text(x1 - 3 * upm, y0 + 2.5 * upm, attribuzione, ha="right", va="bottom",
-            fontfamily="Archivo", fontsize=3.8, color=GRIGIO, zorder=12)
 
+
+def _orientamento(fig, cornice, upm: float, angolo: str, w_mm: float, h_mm: float,
+                  insieme, geo_insieme: dict, tavole: list, indice: int, albergo) -> None:
+    """La mappina di tutta la città, con le due tavole: questa in terracotta."""
+    ox, oy = _impronta(cornice, angolo, upm, w_mm, h_mm)
+    axo = fig.add_axes([(ox - cornice[0]) / (cornice[2] - cornice[0]),
+                        (oy - cornice[1]) / (cornice[3] - cornice[1]),
+                        w_mm / LARGHEZZA_MM, h_mm / ALTEZZA_MM])
+    x0, y0, x1, y1 = insieme
+    axo.set_xlim(x0, x1)
+    axo.set_ylim(y0, y1)
+    axo.set_aspect("equal")
+    axo.axis("off")
+    axo.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, color=ACQUA, zorder=0))
+    for t in terra(geo_insieme["costa"], box(x0, y0, x1, y1), geo_insieme["punti_strada"]):
+        _area(axo, t, facecolor=CARTA, edgecolor="none", zorder=1)
+    for a in geo_insieme["acque"]:
+        _area(axo, a, facecolor=ACQUA, edgecolor="none", zorder=2)
+    axo.add_collection(LineCollection(geo_insieme["strade"]["principali"], colors=STRADA_P,
+                                      linewidths=0.3, zorder=3))
+    for i, t in enumerate(tavole):
+        tx0, ty0, tx1, ty1 = t["cornice"]
+        if i == indice:
+            axo.add_patch(plt.Rectangle((tx0, ty0), tx1 - tx0, ty1 - ty0, facecolor=TERRA,
+                                        alpha=0.22, edgecolor="none", zorder=4))
+            axo.add_patch(plt.Rectangle((tx0, ty0), tx1 - tx0, ty1 - ty0, fill=False,
+                                        edgecolor=TERRA, linewidth=0.9, zorder=5))
+        else:
+            axo.add_patch(plt.Rectangle((tx0, ty0), tx1 - tx0, ty1 - ty0, fill=False,
+                                        edgecolor=INCH2, linewidth=0.5, linestyle=(0, (2, 1.5)),
+                                        zorder=5))
+    if albergo is not None:
+        axo.add_patch(Circle(albergo, 0.012 * (x1 - x0), color=INCH, zorder=6))
+    axo.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, edgecolor=INCH2,
+                                linewidth=0.7, zorder=7))
+
+
+def _salva(fig, destinazione: Path) -> None:
     # Un'immagine raster opaca, non il vettoriale: diciassettemila strade in un
     # flusso solo fanno arrendere molti lettori PDF, che mostrano una pagina
     # bianca — e il libro lo si apre soprattutto dal telefono. 400 dpi è
     # risoluzione di stampa; senza canale alfa, nessuna maschera nel PDF.
+    from PIL import Image
+
     destinazione.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(destinazione, facecolor=ACQUA, dpi=400)
     plt.close(fig)
-    from PIL import Image
-
     Image.open(destinazione).convert("RGB").save(destinazione, optimize=True)
 
-    return [{k: v for k, v in l.items() if k != "xy"} for l in numerati
-            + [l for l in luoghi if l["tipo"] == "albergo"]]
+
+def disegna(osm: list, luoghi: list[dict], sezioni: list[str], testo_capitolo: str,
+            destinazione: Path, osm_insieme: list | None = None,
+            attribuzione: str = "© OpenStreetMap contributors") -> tuple[list[dict], list[Path]]:
+    """Disegna le tavole della mappa. Ritorna (luoghi numerati, file scritti).
+
+    `luoghi`: dizionari con lat, lon, sezione, etichetta, tipo ("luogo" | "albergo").
+    I luoghi sono numerati nell'ordine in cui arrivano; l'albergo porta una H.
+    La prima tavola va in `destinazione`, la seconda accanto (nome_tavola).
+    `osm_insieme`: le geometrie essenziali di tutta la città, per la mappina
+    d'orientamento quando le tavole sono due.
+    """
+    c = componi(luoghi)
+    pr, luoghi, numerati, tavole = c["pr"], c["luoghi"], c["numerati"], c["tavole"]
+    testo = testo_capitolo.lower()
+    geo = _leggi_osm(osm, pr)
+    geo_insieme = _leggi_osm(osm_insieme, pr) if (osm_insieme and c["insieme"]) else None
+    albergo = next((l["xy"] for l in luoghi if l["tipo"] == "albergo"), None)
+    scritti = []
+
+    for indice, t in enumerate(tavole):
+        cornice, in_mappa = t["cornice"], t["luoghi"]
+        upm = (cornice[2] - cornice[0]) / LARGHEZZA_MM
+        fig = plt.figure(figsize=(LARGHEZZA_MM * MM, ALTEZZA_MM * MM), dpi=400)
+        ax = fig.add_axes([0, 0, 1, 1])
+        _fondo(ax, geo, cornice)
+        _zone(ax, in_mappa, sezioni, upm)
+        _quartieri(ax, geo, testo, in_mappa, cornice, upm)
+        _puntini(ax, in_mappa, upm)
+        occupati: set[str] = set()
+
+        if t["riquadro"]:
+            nel_riquadro, cr = t["riquadro"]["luoghi"], t["riquadro"]["cornice"]
+            rw, rh = RIQUADRO_MM
+            cx = sum(l["xy"][0] for l in nel_riquadro) / len(nel_riquadro)
+            cy = sum(l["xy"][1] for l in nel_riquadro) / len(nel_riquadro)
+            mx, my = (cornice[0] + cornice[2]) / 2, (cornice[1] + cornice[3]) / 2
+            # A parità di puntini coperti, il riquadro va dalla parte in cui il
+            # gruppo sta davvero: Harlem in alto, non in basso a sinistra.
+            versi = {"ad": (1, 1), "as": (-1, 1), "bd": (1, -1), "bs": (-1, -1)}
+            candidati = sorted(versi, key=lambda a: -(versi[a][0] * (cx - mx) + versi[a][1] * (cy - my)))
+            angolo = _angolo_libero(cornice, in_mappa, upm, rw, rh, candidati, occupati)
+            occupati.add(angolo)
+            ox, oy = _impronta(cornice, angolo, upm, rw, rh)
+            axr = fig.add_axes([(ox - cornice[0]) / (cornice[2] - cornice[0]),
+                                (oy - cornice[1]) / (cornice[3] - cornice[1]),
+                                rw / LARGHEZZA_MM, rh / ALTEZZA_MM])
+            upm_r = (cr[2] - cr[0]) / rw
+            _fondo(axr, geo, cr)
+            _zone(axr, nel_riquadro, sezioni, upm_r)
+            _quartieri(axr, geo, testo, nel_riquadro, cr, upm_r)
+            _puntini(axr, nel_riquadro, upm_r)
+            axr.add_patch(plt.Rectangle((cr[0], cr[1]), cr[2] - cr[0], cr[3] - cr[1], fill=False,
+                                        edgecolor=INCH2, linewidth=0.7, zorder=20))
+            # Quanto è lontano e da che parte: il riquadro non è in scala con la mappa.
+            km = max(1, round(_distanza((cx, cy), (mx, my)) / KM))
+            etichetta = f"{km} km a {_verso(cx - mx, cy - my)}"
+            sopra = "b" in angolo  # in basso, la scritta va sopra il riquadro
+            ty = oy + rh * upm + 1.2 * upm if sopra else oy - 1.2 * upm
+            ax.text(ox + rw * upm / 2, ty, _spaziato(etichetta), ha="center",
+                    va="bottom" if sopra else "top", fontfamily="Archivo", fontweight="medium",
+                    fontsize=4.4, color=INCH2, zorder=21)
+
+        if geo_insieme is not None:
+            x0, y0, x1, y1 = c["insieme"]
+            r = (x1 - x0) / (y1 - y0)
+            w_mm, h_mm = (32.0, max(16.0, 32.0 / r)) if r >= 1 else (max(16.0, 32.0 * r), 32.0)
+            angolo = _angolo_libero(cornice, in_mappa, upm, w_mm, h_mm, ["ad", "as", "bd", "bs"], occupati)
+            occupati.add(angolo)
+            _orientamento(fig, cornice, upm, angolo, w_mm, h_mm, c["insieme"], geo_insieme,
+                          tavole, indice, albergo)
+
+        # Scala e nord insieme, nell'angolo più libero in basso.
+        angolo = _angolo_libero(cornice, in_mappa, upm, 26, 12, ["bs", "bd"], occupati)
+        _scala_e_nord(ax, cornice, upm, angolo)
+        x0, y0, x1, y1 = cornice
+        ax.text(x1 - 3 * upm, y0 + 2.5 * upm, attribuzione, ha="right", va="bottom",
+                fontfamily="Archivo", fontsize=3.8, color=GRIGIO, zorder=12)
+
+        percorso = nome_tavola(destinazione, indice)
+        _salva(fig, percorso)
+        scritti.append(percorso)
+
+    return ([{k: v for k, v in l.items() if k != "xy"} for l in numerati
+             + [l for l in luoghi if l["tipo"] == "albergo"]], scritti)
