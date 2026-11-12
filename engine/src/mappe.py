@@ -323,10 +323,10 @@ Per ogni luogo:
 - "etichetta": il nome breve come lo leggerà il lettore nella legenda, al massimo 40 caratteri, come lo chiama il capitolo.
 - "sezione": il numero romano della sezione in cui il capitolo ne parla di più, scelto da questo elenco:
 {elenco}
-- "ricerche": da 1 a 3 testi per il geocoder di OpenStreetMap, dal più preciso al più generico. Prima l'indirizzo, se il capitolo lo dà (via, numero civico, quartiere); poi il nome ufficiale com'è scritto sulle mappe locali o in inglese (per esempio "Senso-ji" o "Metropolitan Museum of Art"). Aggiungi sempre la città in fondo, dopo una virgola.
-- "tipo": "albergo" per dove si dorme, "luogo" per tutto il resto.{nota_albergo}
+- "ricerche": da 1 a 4 testi per il geocoder di OpenStreetMap, dal più preciso al più generico. Prima l'indirizzo, se il capitolo lo dà (via, numero civico, quartiere); poi il nome ufficiale com'è scritto sulle mappe locali o in inglese (per esempio "Senso-ji" o "Metropolitan Museum of Art"). Aggiungi sempre la città in fondo, dopo una virgola. Dove si usa un'altra scrittura (giapponese, cinese, coreano, thai, cirillico, arabo, greco…), una delle ricerche è il nome nella scrittura locale, che è quello principale su OpenStreetMap (per esempio "金沢21世紀美術館, 金沢市").
+- "tipo": "albergo" per dove si dorme; "gita" per un luogo che sta in un'altra località, raggiunta in treno o in bus in una gita fuori città (i templi di Nikko in un capitolo su Tokyo); "luogo" per tutto il resto.{nota_albergo}
 
-Due luoghi allo stesso indirizzo (un caffè dentro un museo) diventano una voce sola: "MoMA · Terrace 5".
+Due luoghi allo stesso indirizzo (un caffè dentro un museo) diventano una voce sola: "MoMA · Terrace 5". Le ricerche di una voce così cercano il luogo che contiene l'altro, o il primo dei due: mai i due nomi insieme.
 Al massimo {config.MAPPE_MAX_LUOGHI} luoghi: se ce ne sono di più, tieni quelli a cui il capitolo dà più spazio. Elencali nell'ordine in cui il lettore li incontra.
 NON scrivere coordinate: le trova il geocoder.
 
@@ -345,12 +345,13 @@ def _leggi_elenco(testo: str, romani: set[str]) -> list[dict]:
         if not isinstance(v, dict):
             continue
         etichetta = str(v.get("etichetta") or "").strip()[:60]
-        ricerche = [str(q).strip() for q in (v.get("ricerche") or []) if str(q).strip()][:3]
+        ricerche = [str(q).strip() for q in (v.get("ricerche") or []) if str(q).strip()][:4]
         if not etichetta or not ricerche or etichetta.lower() in visti:
             continue
         visti.add(etichetta.lower())
         sezione = str(v.get("sezione") or "").strip().rstrip(".").upper()
-        tipo = "albergo" if v.get("tipo") == "albergo" and not albergo else "luogo"
+        tipo = ("albergo" if v.get("tipo") == "albergo" and not albergo
+                else "gita" if v.get("tipo") == "gita" else "luogo")
         albergo = albergo or tipo == "albergo"
         fuori.append({"etichetta": etichetta, "sezione": sezione if sezione in romani else "",
                       "ricerche": ricerche, "tipo": tipo})
@@ -398,6 +399,10 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
         return chiudi(f"la tappa «{luogo}» non si trova sulla mappa")
     luoghi, voce = luoghi_dal_capitolo(client, corpo_md, luogo, sezioni, albergo)
     esito["costo_usd"] = voce.get("costo_usd") or 0.0
+    # I luoghi delle gite stanno fuori dal rettangolo della città: cercarli è
+    # tempo perso, e la gita c'è già sulla mappa del viaggio.
+    esito["in_gita"] = [l["etichetta"] for l in luoghi if l["tipo"] == "gita"]
+    luoghi = [l for l in luoghi if l["tipo"] != "gita"]
     trovati, mancanti = geocodifica(luoghi, riquadro)
     esito["non_trovati"] = [{"etichetta": m["etichetta"], "motivo": m["motivo"],
                              "ricerche": m["ricerche"]} for m in mancanti]
@@ -458,9 +463,11 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
                 print(f"Mappa capitolo {c['numero']:02d}: saltata — {esito['saltata']}.")
             else:
                 mancanti = ", ".join(m["etichetta"] for m in esito["non_trovati"])
+                in_gita = ", ".join(esito.get("in_gita") or [])
                 print(f"Mappa capitolo {c['numero']:02d}: {len(esito['luoghi'])} luoghi in "
                       f"{time.monotonic() - t0:.0f}s, ${esito['costo_usd']:.3f}"
-                      + (f"; fuori mappa: {mancanti}" if mancanti else "") + ".")
+                      + (f"; non trovati: {mancanti}" if mancanti else "")
+                      + (f"; in gita, sulla mappa del viaggio: {in_gita}" if in_gita else "") + ".")
             esiti.append(esito)
         except Exception as exc:  # una mappa in meno, mai un libro in meno
             print(f"Mappa capitolo {c['numero']:02d} non riuscita: {exc!r}", file=sys.stderr)

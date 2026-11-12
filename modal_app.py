@@ -432,7 +432,7 @@ def genera_mappe(job_id: str, rifai: bool = False) -> dict:
         "mappe": [e["numero"] for e in esiti if not e.get("saltata")],
         "viaggio": "pronta" if os.path.exists(os.path.join(d, "mappe", "paese.png")) else "assente",
         "saltate": {e["numero"]: e["saltata"] for e in esiti if e.get("saltata")},
-        "fuori_mappa": {e["numero"]: [m["etichetta"] for m in e["non_trovati"]] for e in esiti},
+        "non_trovati": {e["numero"]: [m["etichetta"] for m in e["non_trovati"]] for e in esiti},
         "costo_usd": round(sum(e.get("costo_usd") or 0 for e in esiti), 4),
     }
     print(f"Job {job_id}: mappe {riepilogo}", file=sys.stderr)
