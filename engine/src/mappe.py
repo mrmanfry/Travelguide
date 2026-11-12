@@ -92,6 +92,43 @@ def mappa_del_paese(brief_id: str) -> dict | None:
     return dati
 
 
+def _provvisorio(png: Path) -> Path:
+    """Dove si disegna la mappa nuova, finché non è sicuro che sia venuta."""
+    return png.with_name(png.stem + ".nuovo.png")
+
+
+def _buona(png: Path, js: Path) -> bool:
+    try:
+        dati = json.loads(js.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return png.exists() and not dati.get("saltata") and bool(dati.get("luoghi") or dati.get("fermate"))
+
+
+def _consegna(png: Path, js: Path, esito: dict) -> dict:
+    """Mette al suo posto la mappa nuova e il suo json, insieme.
+
+    Rifare una mappa non deve mai costare quella che c'era: se il nuovo giro
+    non ne produce una (il geocoder che quel giorno non risponde, un modello
+    che elenca meno luoghi), resta la vecchia. Il disegno nuovo sta in un file
+    provvisorio e prende il posto del vecchio solo a lavoro finito.
+    """
+    nuovo = _provvisorio(png)
+    if esito.get("saltata") and _buona(png, js):
+        nuovo.unlink(missing_ok=True)
+        esito["tenuta_la_precedente"] = True
+        return esito
+    js.parent.mkdir(parents=True, exist_ok=True)
+    tmp = js.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(esito, ensure_ascii=False, indent=2), encoding="utf-8")
+    if nuovo.exists():
+        os.replace(nuovo, png)
+    elif esito.get("saltata"):
+        png.unlink(missing_ok=True)
+    os.replace(tmp, js)
+    return esito
+
+
 # ---------------------------------------------------------------------- cache
 
 
@@ -364,7 +401,6 @@ def luoghi_dal_capitolo(client, corpo_md: str, luogo: str, sezioni: list[tuple[s
     response = client.messages.create(
         model=config.MODEL_MAPPE,
         max_tokens=config.MAX_TOKENS_MAPPE,
-        temperature=0,  # stesso capitolo, stessi luoghi
         messages=[{"role": "user", "content": _istruzioni(luogo, sezioni, albergo)
                    + "\n\n---\n\n" + corpo_md}],
     )
@@ -391,9 +427,7 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
     def chiudi(motivo: str | None = None) -> dict:
         if motivo:
             esito["saltata"] = motivo
-        js.parent.mkdir(parents=True, exist_ok=True)
-        js.write_text(json.dumps(esito, ensure_ascii=False, indent=2), encoding="utf-8")
-        return esito
+        return _consegna(png, js, esito)
 
     riquadro = riquadro_citta(luogo)
     if riquadro is None:
@@ -419,7 +453,7 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
 
     osm = dati_osm(rettangoli_geografici(trovati))
     testo = corpo_md + "\n" + "\n".join(t for _, t in sezioni)
-    numerati = disegna(osm, trovati, [r for r, _ in sezioni], testo, png)
+    numerati = disegna(osm, trovati, [r for r, _ in sezioni], testo, _provvisorio(png))
     esito["luoghi"] = [{k: l[k] for k in ("numero", "etichetta", "sezione", "tipo", "lat", "lon",
                                           "trovato_con") if k in l} for l in numerati]
     return chiudi()
@@ -443,7 +477,9 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
 
             client = make_client()
             esito = prepara_mappa_paese(client, brief, assignments, libro)
-            if esito.get("saltata"):
+            if esito.get("tenuta_la_precedente"):
+                print(f"Mappa del viaggio: nuovo giro senza mappa ({esito['saltata']}): resta quella di prima.")
+            elif esito.get("saltata"):
                 print(f"Mappa del viaggio: saltata — {esito['saltata']}.")
             else:
                 mancanti = ", ".join(m["nome"] for m in esito["non_trovati"])
@@ -452,7 +488,7 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
                       f"${esito['costo_usd']:.3f}" + (f"; fuori mappa: {mancanti}" if mancanti else "") + ".")
         except Exception as exc:  # una pagina in meno, mai un libro in meno
             print(f"Mappa del viaggio non riuscita: {exc!r}", file=sys.stderr)
-            file_paese(brief.brief_id)[0].unlink(missing_ok=True)
+            _provvisorio(file_paese(brief.brief_id)[0]).unlink(missing_ok=True)
     for c in libro.get("capitoli") or []:
         a = per_numero.get(c["numero"])
         if c.get("tipo") != "tappa" or a is None or a.tappa is None:
@@ -468,7 +504,10 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
             t0 = time.monotonic()
             esito = prepara_mappa_capitolo(client, brief.brief_id, c["numero"], c.get("corpo_md") or "",
                                            a.tappa.luogo, a.tappa.hotel)
-            if esito.get("saltata"):
+            if esito.get("tenuta_la_precedente"):
+                print(f"Mappa capitolo {c['numero']:02d}: nuovo giro senza mappa "
+                      f"({esito['saltata']}): resta quella di prima.")
+            elif esito.get("saltata"):
                 print(f"Mappa capitolo {c['numero']:02d}: saltata — {esito['saltata']}.")
             else:
                 mancanti = ", ".join(m["etichetta"] for m in esito["non_trovati"])
@@ -481,7 +520,7 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
         except Exception as exc:  # una mappa in meno, mai un libro in meno
             print(f"Mappa capitolo {c['numero']:02d} non riuscita: {exc!r}", file=sys.stderr)
             try:
-                png.unlink(missing_ok=True)
+                _provvisorio(png).unlink(missing_ok=True)
             except OSError:
                 pass
     return esiti
@@ -598,9 +637,7 @@ def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
     def chiudi(motivo: str | None = None) -> dict:
         if motivo:
             esito["saltata"] = motivo
-        js.parent.mkdir(parents=True, exist_ok=True)
-        js.write_text(json.dumps(esito, ensure_ascii=False, indent=2), encoding="utf-8")
-        return esito
+        return _consegna(png, js, esito)
 
     scritti = {c["numero"]: c for c in libro.get("capitoli") or []}
     in_viaggio = [a for a in assignments if a.tappa and a.tipo in ("tappa", "collegamento")
@@ -633,7 +670,6 @@ def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
         for a in in_viaggio)
     response = client.messages.create(
         model=config.MODEL_MAPPE, max_tokens=2000,
-        temperature=0,  # stesso libro, stesse gite: è estrazione, non scrittura
         messages=[{"role": "user", "content": _istruzioni_gite([f["nome"] for f in fermate])
                    + "\n\n---\n\n" + testi}])
     esito["costo_usd"] = costo_chiamata(config.MODEL_MAPPE, response.usage.model_dump()).get("costo_usd") or 0.0
@@ -661,7 +697,7 @@ def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
     righe = righe_itinerario(brief, assignments, libro, gite)
     altezza = max(80.0, min(117 / proporzioni(fermate, gite), 177 - 16 - 8 * len(righe)))
     disegna_paese([dict(f) for f in fermate], [dict(g) for g in gite], paesi or {"XX"},
-                  cartella_natural_earth(), png, altezza)
+                  cartella_natural_earth(), _provvisorio(png), altezza)
     esito.update({"fermate": fermate, "gite": gite, "righe": righe, "altezza_mm": round(altezza, 1),
                   "paesi": sorted(paesi)})
     return chiudi()
