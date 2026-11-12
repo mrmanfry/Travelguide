@@ -364,6 +364,7 @@ def luoghi_dal_capitolo(client, corpo_md: str, luogo: str, sezioni: list[tuple[s
     response = client.messages.create(
         model=config.MODEL_MAPPE,
         max_tokens=config.MAX_TOKENS_MAPPE,
+        temperature=0,  # stesso capitolo, stessi luoghi
         messages=[{"role": "user", "content": _istruzioni(luogo, sezioni, albergo)
                    + "\n\n---\n\n" + corpo_md}],
     )
@@ -555,6 +556,8 @@ def _istruzioni_gite(tappe: list[str]) -> str:
 Elenca le GITE: i luoghi FUORI dalla città-base dove il capitolo manda il lettore in giornata, o in mezza giornata, tornando a dormire alla base.
 Non sono gite: i luoghi dentro la città-base o nei suoi quartieri; le tappe del viaggio, cioè le città dove si dorme ({", ".join(tappe)}); le alternative scartate o solo nominate.
 
+Leggi ogni capitolo sezione per sezione: una sezione dedicata a un'altra località è quasi sempre una gita. Valgono anche i capitoli brevi sulle soste di una notte: un'isola o un santuario raggiunti in traghetto o in treno da lì sono gite di quella sosta. Se più capitoli parlano della stessa località, mettila una volta sola, nel capitolo in cui la si visita davvero, non in quello che la nomina soltanto.
+
 Per ogni gita:
 - "nome": il nome breve, come si scrive su una mappa ("Nikko", "Nara").
 - "ricerca": il testo per il geocoder di OpenStreetMap: il luogo principale della gita col nome com'è sulle mappe locali o in inglese ("Nikko Toshogu"). Mai coordinate.
@@ -630,6 +633,7 @@ def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
         for a in in_viaggio)
     response = client.messages.create(
         model=config.MODEL_MAPPE, max_tokens=2000,
+        temperature=0,  # stesso libro, stesse gite: è estrazione, non scrittura
         messages=[{"role": "user", "content": _istruzioni_gite([f["nome"] for f in fermate])
                    + "\n\n---\n\n" + testi}])
     esito["costo_usd"] = costo_chiamata(config.MODEL_MAPPE, response.usage.model_dump()).get("costo_usd") or 0.0
