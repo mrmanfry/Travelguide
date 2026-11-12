@@ -323,14 +323,23 @@ def genera_guida(
     from schema.brief import Brief
     from src.guide_runner import orchestrazione
 
-    brief_dict = dict(brief_dict)
-    brief_dict["brief_id"] = job_id
-    brief = Brief.model_validate(brief_dict)
-
     import json
     from datetime import datetime, timezone
 
     dir_job = os.path.join(OUTPUT_ROOT, job_id)
+    brief_dict = dict(brief_dict)
+    brief_dict["brief_id"] = job_id
+    try:
+        brief = Brief.model_validate(brief_dict)
+    except Exception as exc:
+        # Una scheda rotta deve lasciare traccia come ogni altro arresto: senza,
+        # il sito aspetta per sempre un job che non è mai partito.
+        os.makedirs(dir_job, exist_ok=True)
+        with open(os.path.join(dir_job, "ERRORE.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Scheda non valida: {exc}\n")
+        output_volume.commit()
+        _avvisa_sito(job_id, "interrotta")
+        raise
 
     def _battito() -> None:
         """Segno di vita del job: se si ferma, l'endpoint se ne accorge."""
@@ -640,6 +649,15 @@ def web():
         effort = brief.pop("_effort", None)
         brief.pop("_anteprima", None)  # ignorato di proposito, vedi sotto
         job_id = uuid.uuid4().hex[:12]
+        # La scheda si controlla qui, non nel container: se è rotta il sito lo
+        # deve sapere subito, con il perché, e non scoprirlo da un job morto.
+        try:
+            from schema.brief import Brief
+
+            Brief.model_validate({**brief, "brief_id": job_id})
+        except Exception as exc:
+            print(f"/generate: scheda non valida: {exc}", file=sys.stderr)
+            raise HTTPException(status_code=400, detail=f"Scheda non valida: {exc}")
         # Da questa porta esce SOLO l'assaggio, qualunque cosa venga chiesta.
         # Il libro intero (~17 $) si scrive unicamente da /completa, che richiede
         # il segreto ed è chiamato solo dal webhook del pagamento. Così la via

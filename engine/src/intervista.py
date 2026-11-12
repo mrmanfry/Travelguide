@@ -295,6 +295,19 @@ def _proteggi(nuova: dict, originale: dict) -> dict:
     v_nuovi = out.get("viaggiatori")
     if isinstance(v_nuovi, dict) and v_orig.get("nomi") and not v_nuovi.get("nomi"):
         out["viaggiatori"] = {**v_nuovi, "nomi": v_orig["nomi"]}
+
+    # La forma dei campi morbidi, come la vuole lo schema. Il modello riemette
+    # volentieri le passioni come parole semplici («birra e birrerie storiche»);
+    # il sito le rimandava così a /generate e il libro non partiva.
+    passioni = out.get("passioni")
+    if isinstance(passioni, list):
+        out["passioni"] = [{"tema": p.strip()} if isinstance(p, str) else p
+                           for p in passioni if not (isinstance(p, str) and not p.strip())]
+    oro = out.get("oro")
+    if isinstance(oro, dict):
+        for campo in ("da_non_perdere", "da_evitare"):
+            if isinstance(oro.get(campo), str):
+                oro[campo] = [oro[campo]] if oro[campo].strip() else []
     return out
 
 

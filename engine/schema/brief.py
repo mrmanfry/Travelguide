@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Tappa(BaseModel):
@@ -50,12 +50,32 @@ class Passione(BaseModel):
     tema: str
     dettaglio: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _da_testo(cls, dati):
+        # Il sito a volte manda le passioni come parole semplici
+        # («birra e birrerie storiche») invece che {tema, dettaglio}. È la
+        # stessa informazione: rifiutarla fermava il libro prima di cominciare.
+        if isinstance(dati, str):
+            return {"tema": dati}
+        return dati
+
 
 class Oro(BaseModel):
     da_non_perdere: list[str] = Field(default_factory=list)
     da_evitare: list[str] = Field(default_factory=list)
     contesto_emotivo: Optional[str] = None
     note_libere: Optional[str] = None
+
+    @field_validator("da_non_perdere", "da_evitare", mode="before")
+    @classmethod
+    def _lista(cls, v):
+        # Un solo testo invece di un elenco: è un elenco di uno.
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v] if v.strip() else []
+        return v
 
 
 class GiornoProgramma(BaseModel):
