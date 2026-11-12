@@ -320,6 +320,20 @@ def _compatta(el: dict) -> dict | None:
     return None
 
 
+def _overpass(query: str) -> dict:
+    """La query sul primo server che risponde; ognuno con i suoi ritentativi."""
+    dati = urllib.parse.urlencode({"data": query}).encode()
+    ultimo = None
+    for url in config.OVERPASS_URL:
+        try:
+            return _con_ritentativi(lambda: json.loads(_scarica(url, dati, timeout=300)), (20, 60))
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            print(f"Overpass {urllib.parse.urlparse(url).netloc}: {exc!r}, provo il prossimo.",
+                  file=sys.stderr)
+            ultimo = exc
+    raise ultimo
+
+
 def dati_osm(rettangoli: list[tuple[float, float, float, float]], sommario: bool = False) -> list[dict]:
     """Strade, parchi, acqua, costa e quartieri nei rettangoli (sud, ovest, nord, est).
 
@@ -359,11 +373,7 @@ out geom;"""
 out geom;"""
         trovato, valore = _leggi_cache("overpass", query)
         if not trovato:
-            def fai():
-                dati = urllib.parse.urlencode({"data": query}).encode()
-                return json.loads(_scarica(config.OVERPASS_URL, dati, timeout=300))
-
-            grezzo = _con_ritentativi(fai, (30, 90))
+            grezzo = _overpass(query)
             valore = [c for c in (_compatta(x) for x in grezzo.get("elements", [])) if c]
             _scrivi_cache("overpass", query, valore)
         elementi.extend(valore)
@@ -493,19 +503,27 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
     return chiudi()
 
 
-def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[dict]:
+def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False,
+                  solo: list | None = None) -> list[dict]:
     """Le mappe di tutti i capitoli sulle tappe. Non solleva mai.
 
     Un capitolo che ha già la sua mappa (o la nota del perché non ce l'ha) non
     si rifà, a meno di `rifai`: la ripresa di un libro non ripaga niente.
+    `solo`: rifà soltanto queste mappe — numeri di capitolo, e "viaggio" per la
+    mappa del paese. Le altre restano come sono.
     """
+    def da_fare(chi, esiste: bool) -> bool:
+        if solo is not None:
+            return chi in solo
+        return rifai or not esiste
+
     if not config.MAPPE_ATTIVE:
         return []
     per_numero = {a.numero: a for a in assignments}
     client, esiti = None, []
 
     # Prima il paese: è una pagina sola, ma sta in testa al libro.
-    if rifai or not file_paese(brief.brief_id)[1].exists():
+    if da_fare("viaggio", file_paese(brief.brief_id)[1].exists()):
         try:
             from src.chapter_runner import make_client
 
@@ -528,7 +546,7 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
         if c.get("tipo") != "tappa" or a is None or a.tappa is None:
             continue
         png, js = file_mappa(brief.brief_id, c["numero"])
-        if js.exists() and not rifai:
+        if not da_fare(c["numero"], js.exists()):
             continue
         try:
             if client is None:
@@ -702,11 +720,19 @@ def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
     testi = "\n\n".join(
         f"=== Capitolo {a.numero} — base: {titolo_breve(a.tappa.luogo)} ===\n{scritti[a.numero].get('corpo_md') or ''}"
         for a in in_viaggio)
-    response = client.messages.create(
-        model=config.MODEL_MAPPE, max_tokens=2000,
-        messages=[{"role": "user", "content": _istruzioni_gite([f["nome"] for f in fermate])
-                   + "\n\n---\n\n" + testi}])
-    esito["costo_usd"] = costo_chiamata(config.MODEL_MAPPE, response.usage.model_dump()).get("costo_usd") or 0.0
+    richiesta = [{"role": "user", "content": _istruzioni_gite([f["nome"] for f in fermate])
+                  + "\n\n---\n\n" + testi}]
+    response = client.messages.create(model=config.MODEL_GITE, max_tokens=8000,
+                                      output_config={"effort": config.EFFORT_GITE},
+                                      messages=richiesta)
+    esito["costo_usd"] = costo_chiamata(config.MODEL_GITE, response.usage.model_dump()).get("costo_usd") or 0.0
+    if response.stop_reason in ("refusal", "max_tokens"):
+        # Un rifiuto su un elenco di gite è un falso allarme dei filtri: si
+        # rifà con Haiku, piuttosto che lasciare il viaggio senza gite.
+        print(f"Mappa del viaggio: {config.MODEL_GITE} ha chiuso con {response.stop_reason}, "
+              f"rifaccio con {config.MODEL_MAPPE}.", file=sys.stderr)
+        response = client.messages.create(model=config.MODEL_MAPPE, max_tokens=2000, messages=richiesta)
+        esito["costo_usd"] += costo_chiamata(config.MODEL_MAPPE, response.usage.model_dump()).get("costo_usd") or 0.0
     testo = "".join(b.text for b in response.content if b.type == "text")
     per_numero = {a.numero: a for a in in_viaggio}
     gite = []

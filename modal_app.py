@@ -387,7 +387,7 @@ def genera_guida(
     cpu=1.0,
     memory=2048,
 )
-def genera_mappe(job_id: str, rifai: bool = False) -> dict:
+def genera_mappe(job_id: str, rifai: bool = False, solo: list | None = None) -> dict:
     """Aggiunge le mappe (del viaggio e delle città) a un libro finito, e ne rifà il PDF.
 
     Per i libri scritti prima che le mappe esistessero; quelli nuovi le hanno
@@ -419,7 +419,7 @@ def genera_mappe(job_id: str, rifai: bool = False) -> dict:
     brief = Brief.model_validate(brief_dict)
     assignments = carica_outline(brief)
     libro = costruisci_libro(brief, assignments, carica_stato(brief, assignments))
-    esiti = prepara_mappe(brief, assignments, libro, rifai=rifai)
+    esiti = prepara_mappe(brief, assignments, libro, rifai=rifai, solo=solo)
     output_volume.commit()
 
     # Il PDF si rifà in un file accanto e poi prende il posto del vecchio: chi
@@ -738,7 +738,7 @@ def web():
 
         Solo per libri completi: su un libro che si sta ancora scrivendo le
         mappe le prepara il motore da sé, alla fine. Con {"rifai": true} rifà
-        anche quelle che ci sono già.
+        anche quelle che ci sono già; con {"solo": [4, "viaggio"]} solo quelle.
         """
         import re
 
@@ -750,7 +750,8 @@ def web():
         if not os.path.exists(os.path.join(d, "guida.md")):
             raise HTTPException(status_code=409, detail="Il libro non è ancora finito.")
         rifai = bool(isinstance(payload, dict) and payload.get("rifai"))
-        chiamata = genera_mappe.spawn(job_id, rifai)
+        solo = payload.get("solo") if isinstance(payload, dict) else None
+        chiamata = genera_mappe.spawn(job_id, rifai, solo if isinstance(solo, list) else None)
         return {"ok": True, "chiamata": chiamata.object_id}
 
     @api.get("/jobs/{job_id}")

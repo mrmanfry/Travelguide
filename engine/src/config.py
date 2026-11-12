@@ -67,13 +67,22 @@ MAX_TOKENS_COERENZA = 1500
 # Spegnibili senza ridiploy: un libro senza mappe resta un libro intero.
 MAPPE_ATTIVE = os.environ.get("GUIDE_MAPPE", "1") != "0"
 MODEL_MAPPE = "claude-haiku-4-5"
+# Le gite del viaggio si leggono da tutti i capitoli insieme, trentamila parole:
+# Haiku su un testo così lungo ne perdeva una o due a ogni giro, e ogni giro
+# diverso. Una chiamata per libro: Sonnet, a sforzo basso, qualche centesimo.
+MODEL_GITE = "claude-sonnet-5-5"
+EFFORT_GITE = "low"
 MAX_TOKENS_MAPPE = 6000
 MAPPE_MAX_LUOGHI = 30       # oltre, la legenda non sta in una pagina
 MAPPE_MIN_LUOGHI = 4        # sotto, una pagina di mappa non orienta nessuno
 # Chi siamo, per i server di OpenStreetMap: lo chiedono le loro regole d'uso.
 MAPPE_UA = "StradaLeggendo-Motore/1.0 (mappe dei capitoli)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Overpass pubblico va giù spesso sotto carico (502, 504): si prova il server
+# principale e poi due copie degli stessi dati, nell'ordine.
+OVERPASS_URL = ("https://overpass-api.de/api/interpreter",
+                "https://overpass.kumi.systems/api/interpreter",
+                "https://overpass.private.coffee/api/interpreter")
 # Natural Earth (dominio pubblico) per la mappa del paese: confini, regioni,
 # laghi, nomi dei mari. Nell'immagine Modal i file stanno già qui; altrove si
 # scaricano una volta, dalla versione fissata, nella cache delle mappe.
@@ -228,6 +237,12 @@ PRICING = {
         "output": 25.00,
         "cache_write": 10.00,   # 2 * input (TTL 1h)
         "cache_read": 0.50,    # 0.10 * input
+    },
+    "claude-sonnet-5-5": {
+        "input": 2.00,
+        "output": 10.00,
+        "cache_write": 4.00,   # 2 * input (TTL 1h)
+        "cache_read": 0.10,    # su Sonnet 5.5 la lettura costa la metà che su Sonnet 5
     },
     "claude-sonnet-5": {
         "input": 2.00,
