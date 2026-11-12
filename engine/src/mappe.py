@@ -403,6 +403,13 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
     # tempo perso, e la gita c'è già sulla mappa del viaggio.
     esito["in_gita"] = [l["etichetta"] for l in luoghi if l["tipo"] == "gita"]
     luoghi = [l for l in luoghi if l["tipo"] != "gita"]
+    # L'albergo si cerca anche col nome scritto nella scheda, così com'è: il
+    # modello lo «corregge» («Liberté» per Liberte) e il geocoder non lo trova più.
+    if albergo:
+        for l in luoghi:
+            if l["tipo"] == "albergo":
+                nome = re.sub(r"\s+", " ", albergo).strip()
+                l["ricerche"] = l["ricerche"] + [f"{nome}, {titolo_breve(luogo)}", nome]
     trovati, mancanti = geocodifica(luoghi, riquadro)
     esito["non_trovati"] = [{"etichetta": m["etichetta"], "motivo": m["motivo"],
                              "ricerche": m["ricerche"]} for m in mancanti]
@@ -439,7 +446,8 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
                 print(f"Mappa del viaggio: saltata — {esito['saltata']}.")
             else:
                 mancanti = ", ".join(m["nome"] for m in esito["non_trovati"])
-                print(f"Mappa del viaggio: {len(esito['fermate'])} tappe, {len(esito['gite'])} gite, "
+                print(f"Mappa del viaggio: {len(esito['fermate'])} tappe, gite: "
+                      f"{', '.join(g['nome'] for g in esito['gite']) or 'nessuna'}, "
                       f"${esito['costo_usd']:.3f}" + (f"; fuori mappa: {mancanti}" if mancanti else "") + ".")
         except Exception as exc:  # una pagina in meno, mai un libro in meno
             print(f"Mappa del viaggio non riuscita: {exc!r}", file=sys.stderr)
