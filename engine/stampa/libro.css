@@ -432,3 +432,52 @@ h2.sezione .romano::after {
   color: var(--grigio); font-weight: 500; margin: 0 0 6mm;
 }
 .colophon p { text-indent: 0; margin: 0 0 4mm; }
+
+/* ------------------------------------------------------------------ mappe
+ *
+ * Legenda a sinistra, mappa a destra: due pagine che si guardano. La legenda
+ * comincia sempre su una pagina pari, anche a costo di una pagina bianca —
+ * una mappa che obbliga a voltare pagina per sapere cos'è il 14 non serve.
+ * Niente testatina: sono tavole, non testo.
+ */
+
+@page mappa { @top-left { content: none; } @top-right { content: none; } }
+@page :blank {
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-left { content: none; } @bottom-right { content: none; }
+}
+.legenda-mappa { page: mappa; break-before: left; hyphens: none; }
+.tavola-mappa  { page: mappa; break-before: page; }
+.tavola-mappa img { display: block; width: 117mm; height: 168mm; margin: 4mm 0 0; }
+
+.legenda-mappa .occhio {
+  font-family: "Archivo libro", sans-serif; font-weight: 500;
+  font-size: 7pt; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--tinta); margin: 0 0 3mm; text-indent: 0;
+}
+.legenda-mappa .titolo-mappa {
+  font-size: 17pt; line-height: 1.15; color: var(--inchiostro);
+  margin: 0 0 7mm; text-indent: 0; text-align: left;
+}
+.legenda-mappa .colonne { columns: 2; column-gap: 7mm; }
+.legenda-mappa .gruppo { break-inside: avoid; margin: 0 0 4.5mm; }
+.legenda-mappa .sez {
+  font-family: "Archivo libro", sans-serif; font-weight: 600;
+  font-size: 6.8pt; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--inchiostro-2); margin: 0 0 1.5mm; line-height: 1.35;
+  text-indent: 0; text-align: left;
+}
+.legenda-mappa .sez .romano { color: var(--tinta); margin-right: 1.6mm; }
+.legenda-mappa ul { list-style: none; margin: 0; padding: 0; }
+.legenda-mappa li {
+  font-size: 9.2pt; line-height: 1.35; margin: 0 0 0.8mm;
+  padding-left: 5.2mm; text-indent: -5.2mm; text-align: left;
+}
+.legenda-mappa .n, .legenda-mappa .h {
+  display: inline-block; width: 3.6mm; height: 3.6mm; border-radius: 50%;
+  background: var(--terracotta); color: var(--carta);
+  font-family: "Archivo libro", sans-serif; font-weight: 600; font-size: 5.3pt;
+  letter-spacing: 0; text-align: center; line-height: 3.6mm;
+  margin-right: 1.6mm; text-indent: 0; vertical-align: 0.3mm;
+}
+.legenda-mappa .h { background: var(--inchiostro); }

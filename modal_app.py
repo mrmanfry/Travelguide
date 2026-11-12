@@ -233,6 +233,11 @@ engine_image = (
         "fastapi[standard]",
         "weasyprint>=66",
         "markdown>=3.6",
+        # Le mappe dei capitoli: geometrie (shapely), disegno (matplotlib) e il
+        # PNG senza canale alfa che ogni lettore PDF sa mostrare (pillow).
+        "matplotlib>=3.9",
+        "shapely>=2.0",
+        "pillow>=10",
     )
     .add_local_dir("engine", remote_path="/root/engine")
 )
@@ -362,6 +367,65 @@ def genera_guida(
     # 0 = libro completo, 2 = assaggio pronto, 1 = fermata (tetto, gate, riassunto).
     _avvisa_sito(job_id, {0: "completa", 2: "anteprima"}.get(rc, "interrotta"))
     return rc
+
+
+@app.function(
+    image=engine_image,
+    volumes={"/data": output_volume},
+    secrets=[anthropic_secret],
+    timeout=60 * 60,
+    cpu=1.0,
+    memory=2048,
+)
+def genera_mappe(job_id: str, rifai: bool = False) -> dict:
+    """Aggiunge le mappe a un libro già finito e ne rifà il PDF.
+
+    Per i libri scritti prima che le mappe esistessero; quelli nuovi le hanno
+    già, perché il motore le prepara da sé prima di impaginare. Nessun capitolo
+    si riscrive: Haiku rilegge i capitoli sulle tappe (pochi centesimi l'uno) e
+    il resto lo fa OpenStreetMap.
+    """
+    _prepara_ambiente()
+    import json
+    import os
+    import sys
+    from pathlib import Path
+
+    chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if chiave:
+        os.environ["GUIDE_ENGINE_KEY"] = chiave
+
+    from schema.brief import Brief
+    from src.guide_runner import carica_stato, costruisci_libro
+    from src.mappe import prepara_mappe
+    from src.outline import carica_outline
+    from src.pdf import scrivi_pdf
+
+    output_volume.reload()
+    d = os.path.join(OUTPUT_ROOT, job_id)
+    with open(os.path.join(d, "brief.json"), encoding="utf-8") as f:
+        brief_dict = json.load(f)
+    brief_dict["brief_id"] = job_id
+    brief = Brief.model_validate(brief_dict)
+    assignments = carica_outline(brief)
+    libro = costruisci_libro(brief, assignments, carica_stato(brief, assignments))
+    esiti = prepara_mappe(brief, assignments, libro, rifai=rifai)
+    output_volume.commit()
+
+    # Il PDF si rifà in un file accanto e poi prende il posto del vecchio: chi
+    # lo sta scaricando in questo momento riceve il vecchio intero, mai uno a metà.
+    nuovo = Path(d) / "libro.nuovo.pdf"
+    scrivi_pdf(brief, libro, nuovo)
+    os.replace(nuovo, Path(d) / "libro.pdf")
+    output_volume.commit()
+    riepilogo = {
+        "mappe": [e["numero"] for e in esiti if not e.get("saltata")],
+        "saltate": {e["numero"]: e["saltata"] for e in esiti if e.get("saltata")},
+        "fuori_mappa": {e["numero"]: [m["etichetta"] for m in e["non_trovati"]] for e in esiti},
+        "costo_usd": round(sum(e.get("costo_usd") or 0 for e in esiti), 4),
+    }
+    print(f"Job {job_id}: mappe {riepilogo}", file=sys.stderr)
+    return riepilogo
 
 
 @app.function(image=engine_image, volumes={"/data": output_volume}, secrets=[anthropic_secret])
@@ -656,6 +720,27 @@ def web():
             "gia_completo": False,
             "brief_aggiornato": brief_aggiornato,
         }
+
+    @api.post("/jobs/{job_id}/mappe")
+    def aggiungi_mappe(job_id: str, request: Request, payload: dict | None = None):
+        """Aggiunge le mappe a un libro già finito (dietro la porta).
+
+        Solo per libri completi: su un libro che si sta ancora scrivendo le
+        mappe le prepara il motore da sé, alla fine. Con {"rifai": true} rifà
+        anche quelle che ci sono già.
+        """
+        import re
+
+        _controlla_porta(request)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", job_id):
+            raise HTTPException(status_code=404, detail="Lavoro non trovato.")
+        output_volume.reload()
+        d = _job_dir(job_id)
+        if not os.path.exists(os.path.join(d, "guida.md")):
+            raise HTTPException(status_code=409, detail="Il libro non è ancora finito.")
+        rifai = bool(isinstance(payload, dict) and payload.get("rifai"))
+        chiamata = genera_mappe.spawn(job_id, rifai)
+        return {"ok": True, "chiamata": chiamata.object_id}
 
     @api.get("/jobs/{job_id}")
     def job_status(job_id: str):

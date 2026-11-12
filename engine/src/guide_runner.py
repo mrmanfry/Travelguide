@@ -628,6 +628,16 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
     scrivi_libro_json(brief, assignments, stato)
     da_rivedere_path = scrivi_da_rivedere(brief, assignments, stato)
 
+    # Le mappe dei capitoli sulle tappe, prima del PDF che le impagina. Pochi
+    # centesimi e qualche minuto per capitolo; se una non viene, il libro esce
+    # senza quella pagina.
+    try:
+        from src.mappe import prepara_mappe
+
+        prepara_mappe(brief, assignments, libro)
+    except Exception as exc:
+        print(f"Mappe non preparate: {exc!r}", file=sys.stderr)
+
     # Il PDF impaginato: è la copia che il lettore si porta dietro. Se
     # l'impaginazione fallisce il libro resta comunque consegnato — un problema
     # di stampa non deve cancellare cinque ore di scrittura.

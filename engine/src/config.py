@@ -61,6 +61,20 @@ MAX_TOKENS_META_SALVAGE = 4000  # un capitolo pieno di nomi tronca un JSON da 20
 MODEL_COERENZA = "claude-haiku-4-5"
 MAX_TOKENS_COERENZA = 1500
 
+# Le mappe dei capitoli sulle tappe. Il modello legge il capitolo già scritto e
+# ne elenca i luoghi con le parole da cercare — MAI le coordinate, che vengono
+# dal geocoder di OpenStreetMap. È estrazione da un testo, non scrittura: Haiku.
+# Spegnibili senza ridiploy: un libro senza mappe resta un libro intero.
+MAPPE_ATTIVE = os.environ.get("GUIDE_MAPPE", "1") != "0"
+MODEL_MAPPE = "claude-haiku-4-5"
+MAX_TOKENS_MAPPE = 6000
+MAPPE_MAX_LUOGHI = 30       # oltre, la legenda non sta in una pagina
+MAPPE_MIN_LUOGHI = 4        # sotto, una pagina di mappa non orienta nessuno
+# Chi siamo, per i server di OpenStreetMap: lo chiedono le loro regole d'uso.
+MAPPE_UA = "StradaLeggendo-Motore/1.0 (mappe dei capitoli)"
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
 # Sforzo (`output_config.effort`): quanto il modello ragiona prima di
