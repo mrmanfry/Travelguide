@@ -200,6 +200,92 @@ def _capolettera(frammento: str) -> str:
     )
 
 
+def _modi_di_nominare(luogo: dict) -> list[str]:
+    """Come il testo può chiamare un luogo della mappa, dal più sicuro.
+
+    Il primo è quello che il cartografo ha copiato dal capitolo. Le mappe fatte
+    prima che esistesse hanno solo l'etichetta della legenda, che spesso è
+    accorciata o unisce due luoghi («Di Palo's · Ferrara»): se ne provano i pezzi.
+    """
+    modi = []
+    for m in [luogo.get("nel_testo"), luogo.get("etichetta")]:
+        if not m:
+            continue
+        modi.append(m)
+        senza = re.sub(r"\s*\([^)]*\)", "", m).strip()
+        modi.append(senza)
+        for pezzo in re.split(r"\s+·\s+|,\s+|\s+e\s+|\s+—\s+", senza):
+            modi.append(pezzo.strip())
+    visti, fuori = set(), []
+    for m in modi:
+        if len(m) >= 3 and m.lower() not in visti:
+            visti.add(m.lower())
+            fuori.append(m)
+    return fuori
+
+
+def _segna_luoghi(frammento: str, luoghi: list[dict]) -> str:
+    """Il numero della mappa accanto alla prima menzione di ogni luogo.
+
+    Lo stesso bollo della mappa — terracotta col numero, nero con la H per
+    l'albergo — dopo la prima volta che il luogo compare nella sua sezione (o,
+    se lì non c'è, nel capitolo). Una volta sola: a ogni menzione, la pagina si
+    riempirebbe di bolli. Mai nei titoli, e il bollo non va mai a capo da solo.
+    """
+    pezzi = re.split(r"(<[^>]+>)", frammento)
+    # Per ogni pezzo di testo: la sezione in cui sta, e se è dentro un titolo.
+    sezione, in_titolo, info = "", 0, []
+    for i, p in enumerate(pezzi):
+        if p.startswith("<"):
+            if re.match(r"<h[1-6]\b", p):
+                in_titolo += 1
+            elif re.match(r"</h[1-6]>", p):
+                in_titolo -= 1
+            info.append(None)
+            continue
+        if in_titolo and i > 0 and 'class="romano"' in pezzi[i - 1]:
+            sezione = p.strip()
+        info.append((sezione, bool(in_titolo)))
+
+    def bollo(l: dict) -> str:
+        if l["tipo"] == "albergo":
+            return '<span class="bollo bollo--albergo">H</span>'
+        return f'<span class="bollo">{int(l["numero"])}</span>'
+
+    def prova(l: dict, solo_sezione: bool) -> bool:
+        for modo in _modi_di_nominare(l):
+            schema = re.compile(r"(?<![\w])" + re.escape(modo) + r"(?![\w])", re.IGNORECASE)
+            for i, p in enumerate(pezzi):
+                if info[i] is None or info[i][1]:
+                    continue
+                if solo_sezione and info[i][0] != l.get("sezione"):
+                    continue
+                testo = html.unescape(p)
+                m = schema.search(testo)
+                if not m:
+                    continue
+                trovato = m.group(0)
+                # L'ultima parola e il bollo non si separano a fine riga.
+                testa, _, coda = trovato.rpartition(" ")
+                legato = ((html.escape(testa, quote=False) + " " if testa else "")
+                          + f'<span class="col-bollo">{html.escape(coda, quote=False)}'
+                          f'{bollo(l)}</span>')
+                # Il nome col suo bollo entra come pezzo a sé: le ricerche dopo
+                # non lo toccano («Grand Central» dentro «Grand Central Oyster Bar»).
+                pezzi[i:i + 1] = [html.escape(testo[: m.start()], quote=False), legato,
+                                  html.escape(testo[m.end():], quote=False)]
+                info[i:i + 1] = [info[i], None, info[i]]
+                return True
+        return False
+
+    # I nomi più lunghi prima: «Grand Central Oyster Bar» non deve cedere il
+    # posto a «Grand Central».
+    for l in sorted(luoghi, key=lambda l: -len(l.get("nel_testo") or l.get("etichetta") or "")):
+        if not prova(l, solo_sezione=bool(l.get("sezione"))):
+            prova(l, solo_sezione=False)
+    return "".join(pezzi)
+
+
 def _stacca_titolo_box(testo: str) -> str:
     """Nei box, stacca il titolo dal corpo con una riga vuota.
 
@@ -228,8 +314,11 @@ def _stacca_titolo_box(testo: str) -> str:
     return "\n".join(fuori)
 
 
-def _corpo_capitolo(corpo_md: str) -> tuple[str, str]:
-    """Da markdown a HTML del capitolo. Ritorna (occhiello, corpo)."""
+def _corpo_capitolo(corpo_md: str, luoghi: list[dict] | None = None) -> tuple[str, str]:
+    """Da markdown a HTML del capitolo. Ritorna (occhiello, corpo).
+
+    `luoghi`: quelli della mappa del capitolo, per i bolli accanto ai nomi.
+    """
     testo = _stacca_titolo_box(corpo_md.strip())
 
     # L'occhiello: il primo '## ' che non è una sezione numerata.
@@ -261,6 +350,8 @@ def _corpo_capitolo(corpo_md: str) -> tuple[str, str]:
     frammento = re.sub(r"<h2>(.*?)</h2>", titolo, frammento, flags=re.DOTALL)
     frammento = re.sub(r"<h3>(.*?)</h3>", r'<h2 class="sezione">\1</h2>', frammento)
     frammento = _griglia_fatti(frammento)
+    if luoghi:  # prima del capolettera, che spezza la prima parola in due
+        frammento = _segna_luoghi(frammento, luoghi)
     frammento = _capolettera(frammento)
     return occhiello, frammento
 
@@ -482,7 +573,9 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
     for c in capitoli:
         if c["numero"] in mappe:
             parti.append(_pagine_mappa(c, mappe[c["numero"]]))
-        occhiello, corpo = _corpo_capitolo(c.get("corpo_md") or "")
+        occhiello, corpo = _corpo_capitolo(
+            c.get("corpo_md") or "",
+            (mappe[c["numero"]].get("luoghi") or []) if c["numero"] in mappe else None)
         fam = _famiglia(c.get("tipo"))
         num = romano(c["numero"])
         # La tacca porta il numero del capitolo nella linguetta sul taglio:

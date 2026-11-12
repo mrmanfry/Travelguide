@@ -398,6 +398,7 @@ Cosa NON va: quartieri interi, vie o fiumi lunghi, la città stessa, luoghi in u
 
 Per ogni luogo:
 - "etichetta": il nome breve come lo leggerà il lettore nella legenda, al massimo 40 caratteri, come lo chiama il capitolo.
+- "nel_testo": le parole ESATTE, copiate lettera per lettera dal capitolo, con cui il capitolo nomina il luogo la prima volta nella sua sezione — solo il nome, senza articolo ("Metropolitan Museum", "Tōshō-gū", "Di Palo's"). Servono a mettere il numero della mappa accanto al nome nel testo: se non sono identiche al testo, il numero non compare.
 - "sezione": il numero romano della sezione in cui il capitolo ne parla di più, scelto da questo elenco:
 {elenco}
 - "ricerche": da 1 a 4 testi per il geocoder di OpenStreetMap, dal più preciso al più generico. Prima l'indirizzo, se il capitolo lo dà (via, numero civico, quartiere); poi il nome ufficiale com'è scritto sulle mappe locali o in inglese (per esempio "Senso-ji" o "Metropolitan Museum of Art"). Aggiungi sempre la città in fondo, dopo una virgola. Dove si usa un'altra scrittura (giapponese, cinese, coreano, thai, cirillico, arabo, greco…), una delle ricerche è il nome nella scrittura locale, che è quello principale su OpenStreetMap (per esempio "金沢21世紀美術館, 金沢市").
@@ -408,7 +409,7 @@ Al massimo {config.MAPPE_MAX_LUOGHI} luoghi: se ce ne sono di più, tieni quelli
 NON scrivere coordinate: le trova il geocoder.
 
 Rispondi SOLO con un array JSON, senza altro testo:
-[{{"etichetta": "...", "sezione": "I", "ricerche": ["...", "..."], "tipo": "luogo"}}]"""
+[{{"etichetta": "...", "nel_testo": "...", "sezione": "I", "ricerche": ["...", "..."], "tipo": "luogo"}}]"""
 
 
 def _leggi_elenco(testo: str, romani: set[str]) -> list[dict]:
@@ -430,8 +431,9 @@ def _leggi_elenco(testo: str, romani: set[str]) -> list[dict]:
         tipo = ("albergo" if v.get("tipo") == "albergo" and not albergo
                 else "gita" if v.get("tipo") == "gita" else "luogo")
         albergo = albergo or tipo == "albergo"
+        nel_testo = str(v.get("nel_testo") or "").strip()[:80]
         fuori.append({"etichetta": etichetta, "sezione": sezione if sezione in romani else "",
-                      "ricerche": ricerche, "tipo": tipo})
+                      "ricerche": ricerche, "tipo": tipo, **({"nel_testo": nel_testo} if nel_testo else {})})
     return fuori[: config.MAPPE_MAX_LUOGHI + 1]  # l'albergo non conta tra i trenta
 
 
@@ -499,7 +501,7 @@ def prepara_mappa_capitolo(client, brief_id: str, numero: int, corpo_md: str, lu
                                 osm_insieme)
     esito["tavole"] = len(scritti)
     esito["luoghi"] = [{k: l[k] for k in ("numero", "etichetta", "sezione", "tipo", "lat", "lon",
-                                          "trovato_con") if k in l} for l in numerati]
+                                          "trovato_con", "nel_testo") if k in l} for l in numerati]
     return chiudi()
 
 

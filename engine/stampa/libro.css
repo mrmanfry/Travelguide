@@ -509,3 +509,17 @@ h2.sezione .romano::after {
   flex: 1 1 auto; text-align: right; font-family: "Archivo libro", sans-serif;
   font-size: 7pt; color: var(--grigio); letter-spacing: 0.02em;
 }
+
+/* Il bollo della mappa nel testo: lo stesso della tavola, terracotta col
+   numero, nero con la H per l'albergo. Leggendo «Times Square ①» si sa dove
+   guardare sulla mappa senza passare dalla legenda. */
+.col-bollo { white-space: nowrap; }
+.bollo {
+  display: inline-block; width: 3.5mm; height: 3.5mm; border-radius: 50%;
+  margin-left: 0.7mm; vertical-align: 0.3mm;
+  background: var(--terracotta); color: var(--carta);
+  font-family: "Archivo libro", sans-serif; font-weight: 600; font-style: normal;
+  font-size: 5.4pt; line-height: 3.5mm; letter-spacing: 0; text-align: center;
+  text-indent: 0;
+}
+.bollo--albergo { background: var(--inchiostro); }
