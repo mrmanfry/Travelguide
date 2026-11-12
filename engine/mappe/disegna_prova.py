@@ -396,9 +396,20 @@ def disegna(dati: dict, testo_capitolo: str, uscita: Path) -> list[dict]:
             ha="right", va="bottom", fontfamily="Archivo", fontsize=3.8, color=GRIGIO, zorder=12)
 
     uscita.mkdir(parents=True, exist_ok=True)
-    fig.savefig(uscita / "mappa.svg", facecolor=ACQUA)
+    # Nel PDF va un'immagine raster a 400 dpi, non il vettoriale. Il vettoriale
+    # sono diciassettemila strade in un solo flusso: il motore PDF di prova lo
+    # disegna, ma molti lettori — anteprime in app, telefoni, browser — si
+    # arrendono e mostrano una pagina bianca. E il libro lo si apre soprattutto
+    # sul telefono, dall'email di consegna. 400 dpi è risoluzione di stampa.
+    fig.savefig(uscita / "mappa_stampa.png", facecolor=ACQUA, dpi=400)
     fig.savefig(uscita / "mappa.png", facecolor=ACQUA, dpi=220)
     plt.close(fig)
+    # Senza canale alfa: nel PDF diventerebbe una maschera di trasparenza, cioè
+    # un'altra cosa che un lettore può sbagliare. La mappa è opaca comunque.
+    from PIL import Image
+
+    for nome in ("mappa_stampa.png", "mappa.png"):
+        Image.open(uscita / nome).convert("RGB").save(uscita / nome, optimize=True)
     return numerati + [l for l in luoghi if l["tipo"] == "albergo"]
 
 
@@ -446,7 +457,7 @@ li {{ font-size: 9.2pt; line-height: 1.35; margin: 0 0 .8mm; padding-left: 5.2mm
      color: {CARTA}; font-family: A; font-weight: 600; font-size: 5.3pt; text-align: center;
      line-height: 3.6mm; margin-right: 1.6mm; text-indent: 0; vertical-align: .3mm; }}
 </style></head><body>
-<img class="mappa" src="mappa.svg">
+<img class="mappa" src="mappa_stampa.png">
 <section class="legenda"><p class="occhio">La mappa del capitolo</p>
 <h2>New York a piedi</h2><div class="colonne">{"".join(righe)}</div></section>
 </body></html>"""
