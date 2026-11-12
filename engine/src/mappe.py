@@ -74,6 +74,24 @@ def mappe_del_libro(brief_id: str) -> dict[int, dict]:
     return pronte
 
 
+def file_paese(brief_id: str) -> tuple[Path, Path]:
+    d = cartella_mappe(brief_id)
+    return d / "paese.png", d / "paese.json"
+
+
+def mappa_del_paese(brief_id: str) -> dict | None:
+    """La mappa del viaggio pronta, con il suo itinerario; None se non c'è."""
+    png, js = file_paese(brief_id)
+    try:
+        dati = json.loads(js.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not png.exists() or dati.get("saltata"):
+        return None
+    dati["png"] = str(png)
+    return dati
+
+
 # ---------------------------------------------------------------------- cache
 
 
@@ -434,3 +452,49 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
             except OSError:
                 pass
     return esiti
+
+
+# ------------------------------------------------------------- il paese intero
+
+
+def titolo_breve(titolo: str) -> str:
+    """«Osaka (大阪) — La città che vi guarda mangiare» → «Osaka»."""
+    t = re.split(r"\s+—\s+|:\s+", titolo, maxsplit=1)[0]
+    return re.sub(r"\s*\([^)]*\)\s*$", "", t).strip() or titolo
+
+
+def righe_itinerario(brief, assignments, libro: dict, gite: list[dict]) -> list[dict]:
+    """L'itinerario sotto la mappa del paese: un rigo per ogni capitolo in viaggio.
+
+    Una tappa dice quante notti e quali gite; un collegamento dice da dove a dove
+    (e le notti, se la sosta non ha un capitolo suo, come Hakone).
+    `gite`: {nome, capitolo}.
+    """
+    from src.pdf import romano
+
+    titoli = {c["numero"]: c["titolo"] for c in libro.get("capitoli") or []}
+    tappe = sorted(brief.tappe, key=lambda t: t.ordine)
+    con_capitolo_tappa = {a.tappa.ordine for a in assignments if a.tappa and a.tipo == "tappa"}
+    righe = []
+    for a in assignments:
+        if a.tappa is None or a.tipo not in ("tappa", "collegamento") or a.numero not in titoli:
+            continue
+        notti = f"{a.tappa.notti} {'notte' if a.tappa.notti == 1 else 'notti'}"
+        mie = [g["nome"] for g in gite if g.get("capitolo") == a.numero]
+        if a.tipo == "tappa":
+            dettaglio = [notti]
+        else:
+            prima = next((t for t in reversed(tappe) if t.ordine < a.tappa.ordine), None)
+            dettaglio = [f"{titolo_breve(prima.luogo)} → {titolo_breve(a.tappa.luogo)}" if prima
+                         else f"verso {titolo_breve(a.tappa.luogo)}"]
+            if a.tappa.ordine not in con_capitolo_tappa:
+                dettaglio.append(notti)
+        if mie:
+            dettaglio.append(("gita a " if len(mie) == 1 else "gite a ") + _elenco(mie))
+        righe.append({"romano": romano(a.numero), "famiglia": a.tipo,
+                      "titolo": titolo_breve(titoli[a.numero]), "dettaglio": " · ".join(dettaglio)})
+    return righe
+
+
+def _elenco(nomi: list[str]) -> str:
+    return nomi[0] if len(nomi) == 1 else ", ".join(nomi[:-1]) + " e " + nomi[-1]

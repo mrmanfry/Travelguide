@@ -481,3 +481,31 @@ h2.sezione .romano::after {
   margin-right: 1.6mm; text-indent: 0; vertical-align: 0.3mm;
 }
 .legenda-mappa .h { background: var(--inchiostro); }
+
+/* La mappa del viaggio: dopo l'indice, il paese intero con l'itinerario sotto.
+   La numerazione dei capitoli riprende le tinte di famiglia, come nell'indice. */
+.viaggio { page: mappa; break-before: page; hyphens: none; }
+.viaggio .occhio {
+  font-family: "Archivo libro", sans-serif; font-weight: 500;
+  font-size: 7pt; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--cornice); margin: 0 0 4mm; text-indent: 0;
+}
+.viaggio img { display: block; width: 117mm; margin: 0 0 6mm; }
+.itinerario { list-style: none; margin: 0; padding: 0; }
+.itinerario li {
+  display: flex; align-items: baseline; gap: 3mm;
+  border-top: 0.5pt solid var(--filetto-2); padding: 1.6mm 0;
+  text-indent: 0; text-align: left;
+}
+.itinerario li:last-child { border-bottom: 0.5pt solid var(--filetto-2); }
+.itinerario .romano {
+  flex: 0 0 9mm; font-family: "Archivo libro", sans-serif; font-weight: 600;
+  font-size: 7.5pt; letter-spacing: 0.06em;
+}
+.itinerario .romano--tappa { color: var(--tappa); }
+.itinerario .romano--collegamento { color: var(--collegamento); }
+.itinerario .tappa { flex: 0 0 auto; font-size: 10.5pt; color: var(--inchiostro); }
+.itinerario .dettaglio {
+  flex: 1 1 auto; text-align: right; font-family: "Archivo libro", sans-serif;
+  font-size: 7pt; color: var(--grigio); letter-spacing: 0.02em;
+}

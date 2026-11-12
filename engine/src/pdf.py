@@ -381,6 +381,23 @@ def _pagine_mappa(capitolo: dict, mappa: dict) -> str:
     )
 
 
+def _pagina_viaggio(viaggio: dict) -> str:
+    """La mappa del paese con l'itinerario sotto: dopo l'indice, prima del viaggio."""
+    righe = "".join(
+        f'<li><span class="romano romano--{r["famiglia"]}">{html.escape(r["romano"])}</span>'
+        f'<span class="tappa">{html.escape(r["titolo"])}</span>'
+        f'<span class="dettaglio">{html.escape(r["dettaglio"])}</span></li>'
+        for r in viaggio.get("righe") or []
+    )
+    return (
+        '<section class="viaggio">'
+        '<p class="occhio">Il viaggio</p>'
+        f'<img src="{Path(viaggio["png"]).as_uri()}" alt="" '
+        f'style="height: {float(viaggio["altezza_mm"]):.1f}mm">'
+        f'<ol class="itinerario">{righe}</ol></section>'
+    )
+
+
 def _colophon(brief: Brief, con_mappe: bool = False) -> str:
     # Scriveva «scritto per Tokyo e per le vostre date»: un libro dedicato a una
     # città. È dedicato a chi viaggia.
@@ -437,9 +454,13 @@ def nome_file(titolo: str) -> str:
 def _mappe(brief: Brief) -> dict[int, dict]:
     """Le mappe pronte del libro. Se leggerle va storto, il libro esce senza."""
     try:
-        from src.mappe import mappe_del_libro
+        from src.mappe import mappa_del_paese, mappe_del_libro
 
-        return mappe_del_libro(brief.brief_id)
+        mappe = mappe_del_libro(brief.brief_id)
+        viaggio = mappa_del_paese(brief.brief_id)
+        if viaggio:
+            mappe["paese"] = viaggio
+        return mappe
     except Exception:
         return {}
 
@@ -452,6 +473,8 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
 
     parti = [_frontespizio(brief, titolo), _indice(capitoli)]
     mappe = _mappe(brief)
+    if "paese" in mappe:
+        parti.append(_pagina_viaggio(mappe["paese"]))
     for c in capitoli:
         if c["numero"] in mappe:
             parti.append(_pagine_mappa(c, mappe[c["numero"]]))
@@ -472,7 +495,7 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
             + "</header>"
             f'<div class="corpo">{corpo}</div></section>'
         )
-    parti.append(_colophon(brief, con_mappe=any(c["numero"] in mappe for c in capitoli)))
+    parti.append(_colophon(brief, con_mappe=bool(mappe)))
 
     return (
         '<!doctype html><html lang="it"><head><meta charset="utf-8">'
