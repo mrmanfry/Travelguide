@@ -239,6 +239,16 @@ engine_image = (
         "shapely>=2.0",
         "pillow>=10",
     )
+    # Natural Earth per la mappa del paese: confini, regioni, laghi, mari. Si
+    # scarica una volta, quando si costruisce l'immagine, dalla versione fissata:
+    # un libro non deve dipendere da GitHub mentre si impagina.
+    .run_commands(
+        "mkdir -p /root/naturalearth && cd /root/naturalearth && python -c \""
+        "import urllib.request as u; b='https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/'; "
+        "[u.urlretrieve(b + n + '.geojson', n + '.geojson') for n in ("
+        "'ne_10m_admin_0_countries', 'ne_10m_admin_1_states_provinces', "
+        "'ne_10m_lakes', 'ne_10m_geography_marine_polys')]\""
+    )
     .add_local_dir("engine", remote_path="/root/engine")
 )
 
@@ -378,7 +388,7 @@ def genera_guida(
     memory=2048,
 )
 def genera_mappe(job_id: str, rifai: bool = False) -> dict:
-    """Aggiunge le mappe a un libro già finito e ne rifà il PDF.
+    """Aggiunge le mappe (del viaggio e delle città) a un libro finito, e ne rifà il PDF.
 
     Per i libri scritti prima che le mappe esistessero; quelli nuovi le hanno
     già, perché il motore le prepara da sé prima di impaginare. Nessun capitolo
@@ -420,6 +430,7 @@ def genera_mappe(job_id: str, rifai: bool = False) -> dict:
     output_volume.commit()
     riepilogo = {
         "mappe": [e["numero"] for e in esiti if not e.get("saltata")],
+        "viaggio": "pronta" if os.path.exists(os.path.join(d, "mappe", "paese.png")) else "assente",
         "saltate": {e["numero"]: e["saltata"] for e in esiti if e.get("saltata")},
         "fuori_mappa": {e["numero"]: [m["etichetta"] for m in e["non_trovati"]] for e in esiti},
         "costo_usd": round(sum(e.get("costo_usd") or 0 for e in esiti), 4),

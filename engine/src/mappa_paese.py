@@ -70,7 +70,7 @@ def proporzioni(fermate: list[dict], gite: list[dict]) -> float:
     return (max(xs) - min(xs) + 2 * m) / (max(ys) - min(ys) + 2 * m)
 
 
-def _geometrie(cartella: str, codice: str, cornice_geo, pr: Proiezione):
+def _geometrie(cartella: str, codici: frozenset, cornice_geo, pr: Proiezione):
     """Le geometrie nella cornice, già proiettate."""
     from shapely import affinity
 
@@ -88,10 +88,13 @@ def _geometrie(cartella: str, codice: str, cornice_geo, pr: Proiezione):
         return fuori
 
     paesi = nella_cornice(_leggi(cartella, "ne_10m_admin_0_countries"))
-    nostro = [g for p, g in paesi if p.get("ISO_A2_EH") == codice or p.get("ISO_A2") == codice]
-    altri = [g for p, g in paesi if not (p.get("ISO_A2_EH") == codice or p.get("ISO_A2") == codice)]
+    def nostro_paese(p):
+        return p.get("ISO_A2_EH") in codici or p.get("ISO_A2") in codici
+
+    nostro = [g for p, g in paesi if nostro_paese(p)]
+    altri = [g for p, g in paesi if not nostro_paese(p)]
     regioni = nella_cornice(_leggi(cartella, "ne_10m_admin_1_states_provinces"),
-                            lambda p: p.get("iso_a2") == codice)
+                            lambda p: p.get("iso_a2") in codici)
     laghi = nella_cornice(_leggi(cartella, "ne_10m_lakes"))
     mari = nella_cornice(_leggi(cartella, "ne_10m_geography_marine_polys"))
     return {
@@ -194,14 +197,14 @@ def _scala_km(larghezza_km: float) -> int:
     return 1000
 
 
-def disegna_paese(fermate: list[dict], gite: list[dict], paese: str, cartella_ne: str | Path,
+def disegna_paese(fermate: list[dict], gite: list[dict], paesi: set[str], cartella_ne: str | Path,
                   destinazione: Path, altezza_mm: float) -> None:
     """Disegna la mappa del viaggio in un PNG largo come il blocco di testo.
 
     `fermate`: in ordine di viaggio, {nome, lat, lon, capitoli: [(romano, famiglia)]};
     la stessa città due volte (Tokyo all'andata e al ritorno) è un puntino solo.
     `gite`: {nome, lat, lon, base: indice della fermata da cui si parte}.
-    `paese`: codice ISO a due lettere, maiuscolo.
+    `paesi`: i codici ISO a due lettere dei paesi del viaggio (uno, di solito).
     """
     pr = Proiezione(sum(f["lat"] for f in fermate) / len(fermate))
     for p in fermate + gite:
@@ -224,7 +227,7 @@ def disegna_paese(fermate: list[dict], gite: list[dict], paese: str, cartella_ne
     cornice = _cornice(tutti, LARGHEZZA_MM, altezza_mm, margine)
     x0, y0, x1, y1 = cornice
     upm = (x1 - x0) / LARGHEZZA_MM
-    geo = _geometrie(str(cartella_ne), paese, box(x0 / pr.k, y0, x1 / pr.k, y1), pr)
+    geo = _geometrie(str(cartella_ne), frozenset(c.upper() for c in paesi), box(x0 / pr.k, y0, x1 / pr.k, y1), pr)
 
     fig = plt.figure(figsize=(LARGHEZZA_MM * MM, altezza_mm * MM), dpi=400)
     ax = fig.add_axes([0, 0, 1, 1])

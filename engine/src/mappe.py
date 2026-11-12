@@ -422,6 +422,23 @@ def prepara_mappe(brief, assignments, libro: dict, rifai: bool = False) -> list[
         return []
     per_numero = {a.numero: a for a in assignments}
     client, esiti = None, []
+
+    # Prima il paese: è una pagina sola, ma sta in testa al libro.
+    if rifai or not file_paese(brief.brief_id)[1].exists():
+        try:
+            from src.chapter_runner import make_client
+
+            client = make_client()
+            esito = prepara_mappa_paese(client, brief, assignments, libro)
+            if esito.get("saltata"):
+                print(f"Mappa del viaggio: saltata — {esito['saltata']}.")
+            else:
+                mancanti = ", ".join(m["nome"] for m in esito["non_trovati"])
+                print(f"Mappa del viaggio: {len(esito['fermate'])} tappe, {len(esito['gite'])} gite, "
+                      f"${esito['costo_usd']:.3f}" + (f"; fuori mappa: {mancanti}" if mancanti else "") + ".")
+        except Exception as exc:  # una pagina in meno, mai un libro in meno
+            print(f"Mappa del viaggio non riuscita: {exc!r}", file=sys.stderr)
+            file_paese(brief.brief_id)[0].unlink(missing_ok=True)
     for c in libro.get("capitoli") or []:
         a = per_numero.get(c["numero"])
         if c.get("tipo") != "tappa" or a is None or a.tappa is None:
@@ -498,3 +515,134 @@ def righe_itinerario(brief, assignments, libro: dict, gite: list[dict]) -> list[
 
 def _elenco(nomi: list[str]) -> str:
     return nomi[0] if len(nomi) == 1 else ", ".join(nomi[:-1]) + " e " + nomi[-1]
+
+
+def cartella_natural_earth() -> Path:
+    """I file di Natural Earth: dall'immagine, o scaricati una volta nella cache."""
+    if all((config.NATURAL_EARTH_DIR / f"{n}.geojson").exists() for n in config.NATURAL_EARTH_FILE):
+        return config.NATURAL_EARTH_DIR
+    d = config.output_root() / "_cache_mappe" / "naturalearth"
+    d.mkdir(parents=True, exist_ok=True)
+    for n in config.NATURAL_EARTH_FILE:
+        f = d / f"{n}.geojson"
+        if not f.exists():
+            dati = _con_ritentativi(lambda: _scarica(f"{config.NATURAL_EARTH_URL}/{n}.geojson",
+                                                     timeout=300), (10, 30))
+            tmp = f.with_suffix(f".{os.getpid()}.tmp")
+            tmp.write_bytes(dati)
+            os.replace(tmp, f)
+    return d
+
+
+def _istruzioni_gite(tappe: list[str]) -> str:
+    return f"""Sei il cartografo di una guida di viaggio. Ti do i capitoli del libro che parlano delle tappe del viaggio; ogni capitolo dice qual è la sua città-base.
+
+Elenca le GITE: i luoghi FUORI dalla città-base dove il capitolo manda il lettore in giornata, o in mezza giornata, tornando a dormire alla base.
+Non sono gite: i luoghi dentro la città-base o nei suoi quartieri; le tappe del viaggio, cioè le città dove si dorme ({", ".join(tappe)}); le alternative scartate o solo nominate.
+
+Per ogni gita:
+- "nome": il nome breve, come si scrive su una mappa ("Nikko", "Nara").
+- "ricerca": il testo per il geocoder di OpenStreetMap: il luogo principale della gita col nome com'è sulle mappe locali o in inglese ("Nikko Toshogu"). Mai coordinate.
+- "capitolo": il numero del capitolo in cui se ne parla, in cifre arabe.
+
+Al massimo 8 gite. Se non ce ne sono, rispondi [].
+Rispondi SOLO con un array JSON: [{{"nome": "...", "ricerca": "...", "capitolo": 4}}]"""
+
+
+def _leggi_gite(testo: str, capitoli_validi: set[int]) -> list[dict]:
+    inizio, fine = testo.find("["), testo.rfind("]")
+    if inizio < 0 or fine < inizio:
+        raise ValueError("la risposta non contiene un elenco JSON")
+    fuori, visti = [], set()
+    for v in json.loads(testo[inizio:fine + 1]):
+        if not isinstance(v, dict):
+            continue
+        nome = str(v.get("nome") or "").strip()[:30]
+        ricerca = str(v.get("ricerca") or "").strip()
+        try:
+            capitolo = int(v.get("capitolo"))
+        except (TypeError, ValueError):
+            continue
+        if nome and ricerca and capitolo in capitoli_validi and nome.lower() not in visti:
+            visti.add(nome.lower())
+            fuori.append({"nome": nome, "ricerche": [ricerca, nome], "capitolo": capitolo})
+    return fuori[:8]
+
+
+def prepara_mappa_paese(client, brief, assignments, libro: dict) -> dict:
+    """La mappa del viaggio intero: scrive mappe/paese.png e paese.json."""
+    from src.mappa_paese import disegna_paese, proporzioni
+    from src.pdf import romano
+
+    png, js = file_paese(brief.brief_id)
+    esito = {"fermate": [], "gite": [], "non_trovati": [], "righe": [], "costo_usd": 0.0}
+
+    def chiudi(motivo: str | None = None) -> dict:
+        if motivo:
+            esito["saltata"] = motivo
+        js.parent.mkdir(parents=True, exist_ok=True)
+        js.write_text(json.dumps(esito, ensure_ascii=False, indent=2), encoding="utf-8")
+        return esito
+
+    scritti = {c["numero"]: c for c in libro.get("capitoli") or []}
+    in_viaggio = [a for a in assignments if a.tappa and a.tipo in ("tappa", "collegamento")
+                  and a.numero in scritti]
+    tappe = sorted(brief.tappe, key=lambda t: t.ordine)
+    if len(tappe) < 2 or not in_viaggio:
+        return chiudi("una tappa sola: la mappa della città basta")
+
+    # Le tappe, dal geocoder. Una tappa che non si trova falsa il percorso:
+    # meglio nessuna mappa del viaggio che una con un pezzo mancante.
+    fermate, paesi = [], set()
+    for t in tappe:
+        r = riquadro_citta(t.luogo)
+        if r is None:
+            esito["non_trovati"].append({"nome": t.luogo, "motivo": "tappa non trovata"})
+            return chiudi(f"la tappa «{t.luogo}» non si trova sulla mappa")
+        if r.get("paese"):
+            paesi.add(r["paese"])
+        capitoli = [(romano(a.numero), a.tipo) for a in in_viaggio if a.tappa.ordine == t.ordine]
+        fermate.append({"nome": titolo_breve(t.luogo), "lat": r["centro"][0], "lon": r["centro"][1],
+                        "ordine": t.ordine, "capitoli": capitoli})
+    estensione = max(_distanza_km((a["lat"], a["lon"]), (b["lat"], b["lon"]))
+                     for a in fermate for b in fermate)
+    if estensione < 40:
+        return chiudi(f"le tappe stanno in {estensione:.0f} km: la mappa della città basta")
+
+    # Le gite: Haiku le legge dai capitoli, il geocoder le cerca intorno alla base.
+    testi = "\n\n".join(
+        f"=== Capitolo {a.numero} — base: {titolo_breve(a.tappa.luogo)} ===\n{scritti[a.numero].get('corpo_md') or ''}"
+        for a in in_viaggio)
+    response = client.messages.create(
+        model=config.MODEL_MAPPE, max_tokens=2000,
+        messages=[{"role": "user", "content": _istruzioni_gite([f["nome"] for f in fermate])
+                   + "\n\n---\n\n" + testi}])
+    esito["costo_usd"] = costo_chiamata(config.MODEL_MAPPE, response.usage.model_dump()).get("costo_usd") or 0.0
+    testo = "".join(b.text for b in response.content if b.type == "text")
+    per_numero = {a.numero: a for a in in_viaggio}
+    gite = []
+    for g in _leggi_gite(testo, set(per_numero)):
+        ordine = per_numero[g["capitolo"]].tappa.ordine
+        base = next(i for i, f in enumerate(fermate) if f["ordine"] == ordine)
+        b = fermate[base]
+        riq = {"sud": b["lat"] - 2.5, "nord": b["lat"] + 2.5, "ovest": b["lon"] - 3.0,
+               "est": b["lon"] + 3.0, "paese": next(iter(paesi)) if len(paesi) == 1 else None}
+        trovati, _ = geocodifica([{"etichetta": g["nome"], "ricerche": g["ricerche"], "tipo": "luogo"}], riq)
+        if not trovati:
+            esito["non_trovati"].append({"nome": g["nome"], "motivo": "gita non trovata"})
+            continue
+        km = _distanza_km((trovati[0]["lat"], trovati[0]["lon"]), (b["lat"], b["lon"]))
+        if km < 10:
+            continue  # è la città stessa: sta già nella mappa della città
+        if any(_distanza_km((trovati[0]["lat"], trovati[0]["lon"]), (f["lat"], f["lon"])) < 8 for f in fermate):
+            continue  # è un'altra tappa del viaggio, non una gita
+        gite.append({"nome": g["nome"], "lat": trovati[0]["lat"], "lon": trovati[0]["lon"],
+                     "base": base, "capitolo": g["capitolo"]})
+
+    righe = righe_itinerario(brief, assignments, libro, gite)
+    altezza = max(80.0, min(117 / proporzioni(fermate, gite), 177 - 16 - 8 * len(righe)))
+    disegna_paese([dict(f) for f in fermate], [dict(g) for g in gite], paesi or {"XX"},
+                  cartella_natural_earth(), png, altezza)
+    esito.update({"fermate": fermate, "gite": gite, "righe": righe, "altezza_mm": round(altezza, 1),
+                  "paesi": sorted(paesi)})
+    return chiudi()

@@ -5,3 +5,6 @@ engine/output/*
 
 # Canvas di design generato dai sorgenti .dc.html (rigenerabile, ~2 MB)
 design/atelier-del-viaggio.html
+
+# Natural Earth scaricato in locale per la mappa del paese (~60 MB)
+naturalearth/

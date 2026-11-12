@@ -405,7 +405,8 @@ def _colophon(brief: Brief, con_mappe: bool = False) -> str:
     # L'attribuzione è un obbligo della licenza dei dati (ODbL), non una cortesia.
     mappe = (
         "<p>Le mappe sono disegnate su dati © OpenStreetMap contributors, "
-        "disponibili con licenza ODbL (openstreetmap.org/copyright).</p>"
+        "disponibili con licenza ODbL (openstreetmap.org/copyright), e di "
+        "Natural Earth, di pubblico dominio.</p>"
         if con_mappe else ""
     )
     return f"""

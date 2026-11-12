@@ -74,6 +74,13 @@ MAPPE_MIN_LUOGHI = 4        # sotto, una pagina di mappa non orienta nessuno
 MAPPE_UA = "StradaLeggendo-Motore/1.0 (mappe dei capitoli)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Natural Earth (dominio pubblico) per la mappa del paese: confini, regioni,
+# laghi, nomi dei mari. Nell'immagine Modal i file stanno già qui; altrove si
+# scaricano una volta, dalla versione fissata, nella cache delle mappe.
+NATURAL_EARTH_DIR = Path(os.environ.get("GUIDE_NATURAL_EARTH", str(ENGINE_ROOT.parent / "naturalearth")))
+NATURAL_EARTH_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson"
+NATURAL_EARTH_FILE = ("ne_10m_admin_0_countries", "ne_10m_admin_1_states_provinces",
+                      "ne_10m_lakes", "ne_10m_geography_marine_polys")
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 
