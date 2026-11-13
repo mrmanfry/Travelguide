@@ -504,6 +504,26 @@ def ordina_stampa(job_id: str, richiesta: dict, base_url: str) -> dict:
     return {"lulu_id": dati["lulu"]["id"], "stato": dati["lulu"]["stato"]}
 
 
+@app.function(image=engine_image, secrets=[lulu_secret], timeout=120)
+def collega_lulu(url_motore: str = "https://filippomanfroni--travelguide-web.modal.run") -> str:
+    """Prova le chiavi Lulu del secret e iscrive il webhook degli ordini.
+
+    Si lancia a mano dopo aver creato o cambiato lulu-secret: usa le stesse
+    chiavi del motore, quindi se qui va, va anche negli ordini.
+    """
+    _prepara_ambiente()
+    from src import lulu
+
+    esito = lulu.prova_chiavi()
+    print(esito)
+    if not esito.startswith("OK"):
+        return esito
+    w = lulu.webhook(url_motore.rstrip("/") + "/lulu/webhook")
+    riga = f"{esito} Webhook {w.get('id')} su {w.get('url')}, attivo: {w.get('is_active')}."
+    print(riga)
+    return riga
+
+
 def _firma_file(job_id: str, nome: str, scade: int) -> str:
     """La firma dei link ai file di stampa: solo chi l'ha ricevuta da noi li scarica."""
     import hashlib

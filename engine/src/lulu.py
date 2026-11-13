@@ -157,3 +157,30 @@ def firma_valida(corpo_grezzo: bytes, firma: str) -> bool:
     _, segreto = _chiavi()
     atteso = hmac.new(segreto.encode(), corpo_grezzo, hashlib.sha256).hexdigest()
     return bool(firma) and hmac.compare_digest(atteso, firma.strip().lower())
+
+
+def webhook(url: str) -> dict:
+    """Iscrive `url` agli stati degli ordini, se non lo è già. Ritorna il webhook."""
+    elenco = _chiama("GET", "/webhooks/")
+    risultati = elenco.get("results", elenco) if isinstance(elenco, dict) else elenco
+    for w in risultati or []:
+        if w.get("url") == url:
+            if not w.get("is_active", True):
+                return _chiama("PATCH", f"/webhooks/{w['id']}/", {"is_active": True})
+            return w
+    return _chiama("POST", "/webhooks/", {"topics": ["PRINT_JOB_STATUS_CHANGED"], "url": url})
+
+
+def prova_chiavi() -> str:
+    """Chiede un gettone e dice in chiaro se le chiavi valgono per questo ambiente."""
+    k, s = _chiavi()
+    try:
+        _gettone["valore"] = None
+        _token()
+    except urllib.error.HTTPError as exc:
+        altro = "produzione" if ambiente() == "sandbox" else "sandbox"
+        return (f"NO: Lulu {ambiente()} rifiuta le chiavi ({exc.code}). Controlla che vengano da "
+                f"{'developers.sandbox.lulu.com' if ambiente() == 'sandbox' else 'developers.lulu.com'} "
+                f"e non da {altro}, senza spazi, e che key e secret non siano invertiti "
+                f"(key di {len(k)} caratteri, secret di {len(s)}).")
+    return f"OK: chiavi valide per Lulu {ambiente()}."
