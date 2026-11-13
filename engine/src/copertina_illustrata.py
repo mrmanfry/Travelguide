@@ -38,7 +38,9 @@ from src.pdf import STAMPA_DIR, _elenco_nomi, titolo_libro
 ORIZZONTE = 0.61      # frazione dell'altezza della pagina, dall'alto
 SAGOMA_MM = 60.0      # altezza massima della sagoma sopra l'orizzonte
 COLORE_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-PATH_RE = re.compile(r"^[MmLlHhVvCcSsQqTtAaZz0-9\s,.\-]+$")
+# Solo comandi assoluti (maiuscoli): così ogni numero è una coordinata vera, e
+# il controllo che la sagoma stia nel riquadro 1000×400 è un controllo vero.
+PATH_RE = re.compile(r"^[MLHVCSQZ0-9\s,.\-]+$")
 
 
 def valida_progetto(p: dict) -> list[str]:
