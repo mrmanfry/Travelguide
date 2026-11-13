@@ -128,6 +128,12 @@ def ordina(brief, libro: dict, richiesta: dict, url_file, pubblica=lambda: None)
         print(f"Stampa {brief.brief_id}: ordine {richiesta['ordine_id']} già creato, non lo ripeto.")
         return esistente
     lulu.indirizzo_pulito(richiesta["indirizzo"])  # un indirizzo rotto si scopre prima dei file
+    email = (richiesta.get("email_contatto") or config.STAMPA_EMAIL or "").strip()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise ValueError("Email di contatto per Lulu mancante o non valida: mettine una vera in "
+                         "GUIDE_STAMPA_EMAIL nel secret lulu-secret (è a lei che Lulu scrive se "
+                         "un ordine ha un problema).")
+    richiesta = {**richiesta, "email_contatto": email}
     file = prepara_file(brief, libro)
     pubblica()
     from src.pdf import titolo_libro
