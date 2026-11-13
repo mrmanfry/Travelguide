@@ -238,6 +238,8 @@ engine_image = (
         "matplotlib>=3.9",
         "shapely>=2.0",
         "pillow>=10",
+        # Contare le pagine del libro per il preventivo di stampa.
+        "pypdf>=4",
     )
     # Natural Earth per la mappa del paese: confini, regioni, laghi, mari. Si
     # scarica una volta, quando si costruisce l'immagine, dalla versione fissata:
@@ -259,6 +261,10 @@ output_volume = modal.Volume.from_name("travelguide-output", create_if_missing=T
 # di Modal espone la chiave come ANTHROPIC_API_KEY; il motore legge invece
 # GUIDE_ENGINE_KEY. Il ponte in genera_guida accetta l'uno o l'altro nome.
 anthropic_secret = modal.Secret.from_name("anthropic-secret")
+# Le chiavi della Print API di Lulu (LULU_CLIENT_KEY, LULU_CLIENT_SECRET,
+# LULU_AMBIENTE=sandbox|produzione). Un secret a parte: aggiungerle a
+# anthropic-secret con --force lo riscriverebbe intero (vedi CHIAVI.md).
+lulu_secret = modal.Secret.from_name("lulu-secret")
 
 
 def _prepara_ambiente() -> None:
@@ -448,7 +454,68 @@ def genera_mappe(job_id: str, rifai: bool = False, solo: list | None = None) -> 
     return riepilogo
 
 
-@app.function(image=engine_image, volumes={"/data": output_volume}, secrets=[anthropic_secret])
+@app.function(
+    image=engine_image,
+    volumes={"/data": output_volume},
+    secrets=[anthropic_secret, lulu_secret],
+    timeout=30 * 60,
+    memory=2048,
+)
+def ordina_stampa(job_id: str, richiesta: dict, base_url: str) -> dict:
+    """Prepara i file di stampa e crea l'ordine su Lulu. Lo chiama SOLO /jobs/{id}/stampa.
+
+    `base_url`: l'indirizzo pubblico del motore, da cui Lulu scarica i file
+    attraverso un link firmato che scade.
+    """
+    _prepara_ambiente()
+    import json
+    import os
+    import sys
+    import time
+
+    from schema.brief import Brief
+    from src.guide_runner import carica_stato, costruisci_libro
+    from src.ordini_stampa import ordina
+    from src.outline import carica_outline
+
+    output_volume.reload()
+    d = os.path.join(OUTPUT_ROOT, job_id)
+    with open(os.path.join(d, "brief.json"), encoding="utf-8") as f:
+        brief_dict = json.load(f)
+    brief_dict["brief_id"] = job_id
+    brief = Brief.model_validate(brief_dict)
+    assignments = carica_outline(brief)
+    libro = costruisci_libro(brief, assignments, carica_stato(brief, assignments))
+
+    scade = int(time.time()) + 7 * 24 * 3600
+
+    def url_file(nome: str) -> str:
+        return f"{base_url.rstrip('/')}/stampa-file/{job_id}/{nome}?scade={scade}&firma={_firma_file(job_id, nome, scade)}"
+
+    try:
+        dati = ordina(brief, libro, richiesta, url_file, pubblica=output_volume.commit)
+    except Exception as exc:
+        output_volume.commit()
+        print(f"Stampa {job_id}: ordine non riuscito: {exc!r}", file=sys.stderr)
+        raise
+    output_volume.commit()
+    print(f"Stampa {job_id}: ordine Lulu {dati['lulu']['id']} ({dati['lulu']['ambiente']}), "
+          f"{dati['file']['pagine']} pagine, dorso {dati['file']['dorso_mm']} mm.")
+    return {"lulu_id": dati["lulu"]["id"], "stato": dati["lulu"]["stato"]}
+
+
+def _firma_file(job_id: str, nome: str, scade: int) -> str:
+    """La firma dei link ai file di stampa: solo chi l'ha ricevuta da noi li scarica."""
+    import hashlib
+    import hmac
+    import os
+
+    chiave = (os.environ.get("LULU_CLIENT_SECRET") or "").encode()
+    return hmac.new(chiave, f"stampa-file|{job_id}|{nome}|{scade}".encode(), hashlib.sha256).hexdigest()
+
+
+@app.function(image=engine_image, volumes={"/data": output_volume},
+              secrets=[anthropic_secret, lulu_secret])
 @modal.asgi_app()
 def web():
     """App FastAPI: intervista di intake, avvio job, stato/avanzamento, artefatti."""
@@ -949,6 +1016,138 @@ def web():
     @api.get("/jobs/{job_id}/anteprima.md")
     def scarica_anteprima(job_id: str):
         return _servi_file(job_id, "anteprima.md")
+
+    # ------------------------------------------------------ libro stampato
+
+    def _job_valido(job_id: str) -> None:
+        import re
+
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", job_id or ""):
+            raise HTTPException(status_code=404, detail="Lavoro non trovato.")
+
+    def _brief_del_job(job_id: str):
+        from schema.brief import Brief
+
+        b = _leggi_json(os.path.join(_job_dir(job_id), "brief.json"))
+        if not b:
+            raise HTTPException(status_code=404, detail="Lavoro non trovato.")
+        b = dict(b)
+        b["brief_id"] = job_id
+        return Brief.model_validate(b)
+
+    @api.post("/jobs/{job_id}/stampa/preventivo")
+    def preventivo_stampa(job_id: str, request: Request, payload: dict):
+        """Costo e date di consegna del libro stampato, per l'indirizzo del cliente.
+
+        Dietro la porta: lo chiama il server del sito, che ci aggiunge il suo
+        prezzo e lo mostra. Per ogni modo di spedire dice la data più tarda
+        prevista e se arriva prima della partenza (`in_tempo`). Solo per libri
+        finiti: si stampa il libro intero, non l'assaggio.
+        """
+        _controlla_porta(request)
+        _job_valido(job_id)
+        output_volume.reload()
+        d = _job_dir(job_id)
+        libro_pdf = os.path.join(d, "libro.pdf")
+        if not (os.path.exists(os.path.join(d, "guida.md")) and os.path.exists(libro_pdf)):
+            raise HTTPException(status_code=409, detail="Il libro non è ancora finito.")
+        from pathlib import Path
+
+        from src import lulu
+        from src.ordini_stampa import preventivo
+
+        indirizzo = (payload or {}).get("indirizzo") or {}
+        try:
+            return preventivo(_brief_del_job(job_id), Path(libro_pdf), indirizzo)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except lulu.ErroreLulu as exc:
+            print(f"Preventivo {job_id}: {exc}", file=sys.stderr)
+            raise HTTPException(status_code=502, detail="Lulu non ha risposto al preventivo.")
+
+    @api.post("/jobs/{job_id}/stampa")
+    def ordina_stampa_endpoint(job_id: str, request: Request, payload: dict):
+        """Manda in stampa il libro. SOLO dal webhook di Stripe, dopo il pagamento.
+
+        Corpo: {ordine_id, indirizzo, livello, email_contatto?}. Lo stesso
+        ordine_id due volte non stampa due copie: il webhook di Stripe può
+        arrivare più di una volta.
+        """
+        _controlla_porta(request)
+        _job_valido(job_id)
+        output_volume.reload()
+        if not os.path.exists(os.path.join(_job_dir(job_id), "guida.md")):
+            raise HTTPException(status_code=409, detail="Il libro non è ancora finito.")
+        richiesta = {k: (payload or {}).get(k) for k in ("ordine_id", "indirizzo", "livello", "email_contatto")}
+        if not richiesta["ordine_id"] or not richiesta["livello"] or not isinstance(richiesta["indirizzo"], dict):
+            raise HTTPException(status_code=400, detail="Servono ordine_id, indirizzo e livello.")
+        from src import lulu
+        from src.ordini_stampa import leggi_ordine
+
+        try:
+            lulu.indirizzo_pulito(richiesta["indirizzo"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        gia = leggi_ordine(job_id) or {}
+        if gia.get("ordine_id") == richiesta["ordine_id"]:
+            return {"ok": True, "gia_ordinato": True}
+        base = str(request.base_url)
+        if base.startswith("http://"):
+            base = "https://" + base[len("http://"):]  # dietro il proxy di Modal arriva http
+        chiamata = ordina_stampa.spawn(job_id, richiesta, base)
+        return {"ok": True, "gia_ordinato": False, "chiamata": chiamata.object_id}
+
+    @api.get("/jobs/{job_id}/stampa")
+    def stato_stampa(job_id: str):
+        """Lo stato dell'ordine di stampa e il tracking. Niente indirizzo."""
+        _job_valido(job_id)
+        output_volume.reload()
+        from src.ordini_stampa import leggi_ordine, ordine_pubblico
+
+        return ordine_pubblico(leggi_ordine(job_id))
+
+    @api.get("/stampa-file/{job_id}/{nome}")
+    def file_stampa(job_id: str, nome: str, scade: int = 0, firma: str = ""):
+        """Interno e copertina per Lulu, solo con un link firmato e non scaduto."""
+        import hmac
+        import time
+
+        from fastapi.responses import FileResponse
+
+        _job_valido(job_id)
+        if nome not in ("interno.pdf", "copertina.pdf") or scade < time.time():
+            raise HTTPException(status_code=404, detail="File non trovato.")
+        if not hmac.compare_digest(_firma_file(job_id, nome, scade), firma or ""):
+            raise HTTPException(status_code=404, detail="File non trovato.")
+        output_volume.reload()
+        path = os.path.join(_job_dir(job_id), "stampa", nome)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="File non trovato.")
+        return FileResponse(path, media_type="application/pdf", filename=nome)
+
+    @api.post("/lulu/webhook")
+    async def webhook_lulu(request: Request):
+        """Gli stati dell'ordine da Lulu, firmati: solo chi ha il nostro segreto li manda."""
+        from src import lulu
+        from src.ordini_stampa import aggiorna_da_lulu
+
+        corpo = await request.body()
+        if not lulu.firma_valida(corpo, request.headers.get("Lulu-HMAC-SHA256", "")):
+            print("webhook Lulu: firma non valida", file=sys.stderr)
+            raise HTTPException(status_code=401, detail="Firma non valida.")
+        try:
+            evento = json.loads(corpo)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Corpo non leggibile.")
+        if evento.get("topic") != "PRINT_JOB_STATUS_CHANGED":
+            return {"ok": True, "ignorato": evento.get("topic")}
+        output_volume.reload()
+        esito = aggiorna_da_lulu(evento.get("data") or {})
+        if esito:
+            output_volume.commit()
+            job_id, ordine = esito
+            print(f"Stampa {job_id}: Lulu dice {ordine['lulu']['stato']}.")
+        return {"ok": True}
 
     @api.get("/jobs/{job_id}/libro.pdf")
     def scarica_pdf(job_id: str):

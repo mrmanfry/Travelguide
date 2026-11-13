@@ -560,8 +560,13 @@ def _mappe(brief: Brief) -> dict[int, dict]:
         return {}
 
 
-def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str:
-    """Il libro come pagina HTML pronta per l'impaginazione."""
+def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None,
+                    stampa: bool = False, bianca_finale: bool = False) -> str:
+    """Il libro come pagina HTML pronta per l'impaginazione.
+
+    `stampa`: la copia per la tipografia, con l'abbondanza (stampa/stampa.css).
+    `bianca_finale`: una pagina bianca in coda, per arrivare a un numero pari.
+    """
     capitoli = libro.get("capitoli") or []
     if titolo is None:
         titolo = titolo_libro(brief, libro)
@@ -597,8 +602,11 @@ def costruisci_html(brief: Brief, libro: dict, titolo: str | None = None) -> str
     return (
         '<!doctype html><html lang="it"><head><meta charset="utf-8">'
         f"<title>{html.escape(titolo)}</title>"
-        '<link rel="stylesheet" href="libro.css"></head>'
-        "<body>" + "".join(parti) + "</body></html>"
+        '<link rel="stylesheet" href="libro.css">'
+        + ('<link rel="stylesheet" href="stampa.css">' if stampa else "")
+        + "</head><body>" + "".join(parti)
+        + ('<section class="bianca-finale"></section>' if bianca_finale else "")
+        + "</body></html>"
     )
 
 
@@ -613,3 +621,23 @@ def scrivi_pdf(brief: Brief, libro: dict, destinazione: Path | None = None) -> P
     # e i caratteri, che vengono incorporati nel PDF.
     HTML(string=documento, base_url=str(STAMPA_DIR) + "/").write_pdf(str(path))
     return path
+
+
+def scrivi_pdf_stampa(brief: Brief, libro: dict, destinazione: Path) -> tuple[Path, int]:
+    """La copia per la tipografia: abbondanza e numero di pagine pari.
+
+    Ritorna (percorso, pagine). Le pagine servono a Lulu due volte: per il
+    prezzo, e per lo spessore del dorso della copertina.
+    """
+    from weasyprint import HTML
+
+    def impagina(bianca: bool):
+        return HTML(string=costruisci_html(brief, libro, stampa=True, bianca_finale=bianca),
+                    base_url=str(STAMPA_DIR) + "/").render()
+
+    documento = impagina(False)
+    if len(documento.pages) % 2:
+        documento = impagina(True)
+    destinazione.parent.mkdir(parents=True, exist_ok=True)
+    documento.write_pdf(str(destinazione))
+    return destinazione, len(documento.pages)

@@ -6,3 +6,4 @@ markdown>=3.6
 matplotlib>=3.9
 shapely>=2.0
 pillow>=10
+pypdf>=4

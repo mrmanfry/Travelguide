@@ -86,6 +86,9 @@ OVERPASS_URL = ("https://overpass-api.de/api/interpreter",
 # Natural Earth (dominio pubblico) per la mappa del paese: confini, regioni,
 # laghi, nomi dei mari. Nell'immagine Modal i file stanno già qui; altrove si
 # scaricano una volta, dalla versione fissata, nella cache delle mappe.
+# Il libro stampato (Lulu). L'indirizzo a cui Lulu scrive per problemi su un
+# ordine: il nostro, non quello del cliente.
+STAMPA_EMAIL = os.environ.get("GUIDE_STAMPA_EMAIL", "")
 NATURAL_EARTH_DIR = Path(os.environ.get("GUIDE_NATURAL_EARTH", str(ENGINE_ROOT.parent / "naturalearth")))
 NATURAL_EARTH_URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson"
 NATURAL_EARTH_FILE = ("ne_10m_admin_0_countries", "ne_10m_admin_1_states_provinces",
