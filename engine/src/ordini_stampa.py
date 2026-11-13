@@ -70,13 +70,13 @@ def conta_pagine(pdf: Path) -> int:
     return len(PdfReader(str(pdf)).pages)
 
 
-def pagine_da_stampare(libro_pdf: Path) -> int:
+def pagine_da_stampare(libro_pdf: Path, con_copertina: bool = False) -> int:
     """Le pagine della copia di stampa: quelle del libro, arrotondate al pari.
 
     L'abbondanza allarga il foglio ma non tocca il blocco del testo, quindi
     l'impaginazione è la stessa: per il preventivo non serve rifare il PDF.
     """
-    n = conta_pagine(libro_pdf)
+    n = conta_pagine(libro_pdf) - (1 if con_copertina else 0)  # la copertina sul libro stampato è a parte
     return n + (n % 2)
 
 
@@ -87,7 +87,9 @@ def _euro(v) -> float:
 def preventivo(brief, libro_pdf: Path, indirizzo: dict) -> dict:
     """Per ogni modo di spedire: quanto costa, quando arriva, se arriva in tempo."""
     lulu.indirizzo_pulito(indirizzo)  # un indirizzo incompleto si dice subito, senza chiedere a Lulu
-    pagine = pagine_da_stampare(libro_pdf)
+    from src.scelta_copertina import progetto_copertina
+
+    pagine = pagine_da_stampare(libro_pdf, con_copertina=progetto_copertina(brief.brief_id) is not None)
     if pagine < lulu.PAGINE_MIN:
         raise ValueError(f"Il libro ha {pagine} pagine: per la brossura ne servono almeno {lulu.PAGINE_MIN}.")
     partenza = brief.date.inizio
@@ -127,7 +129,15 @@ def prepara_file(brief, libro: dict) -> dict:
     d = cartella(brief.brief_id)
     interno, pagine = scrivi_pdf_stampa(brief, libro, d / "interno.pdf")
     dorso = lulu.dorso_mm(pagine)
-    copertina = scrivi_copertina(brief, libro, dorso, d / "copertina.pdf")
+    from src.scelta_copertina import progetto_copertina
+
+    progetto = progetto_copertina(brief.brief_id)
+    if progetto:  # la copertina illustrata, se il libro ne ha una; altrimenti quella con la mappa
+        from src.copertina_illustrata import scrivi_copertina as scrivi_illustrata
+
+        copertina = scrivi_illustrata(brief, libro, dorso, progetto, d / "copertina.pdf")
+    else:
+        copertina = scrivi_copertina(brief, libro, dorso, d / "copertina.pdf")
     return {"interno": str(interno), "copertina": str(copertina), "pagine": pagine, "dorso_mm": dorso}
 
 

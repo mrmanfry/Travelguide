@@ -56,7 +56,30 @@
    "testo": "#f5e8de",
    "accento": "#f0b088"
   },
-  "cielo_consigliato": "alba: indaco, viola, rosa, pesca; sole rosso a destra della cima"
+  "cielo_consigliato": "alba: indaco, viola, rosa, pesca; sole rosso a destra della cima",
+  "atmosfera": "alba",
+  "astro": {
+   "x": 0.68,
+   "y": 0.43,
+   "r": 15
+  },
+  "uccelli": [
+   [
+    0.22,
+    0.4,
+    2.6
+   ],
+   [
+    0.27,
+    0.37,
+    2.0
+   ],
+   [
+    0.31,
+    0.415,
+    1.6
+   ]
+  ]
  },
  "frauenkirche": {
   "nome": "Frauenkirche",
@@ -127,6 +150,24 @@
    "testo": "#f4e7d4",
    "accento": "#eab273"
   },
-  "cielo_consigliato": "sera: blu notte, ardesia, rame, ambra; luna chiara al centro dietro le torri"
+  "cielo_consigliato": "sera: blu notte, ardesia, rame, ambra; luna chiara al centro dietro le torri",
+  "atmosfera": "sera",
+  "astro": {
+   "x": 0.5,
+   "y": 0.455,
+   "r": 21
+  },
+  "uccelli": [
+   [
+    0.24,
+    0.43,
+    2.2
+   ],
+   [
+    0.29,
+    0.4,
+    1.7
+   ]
+  ]
  }
 }

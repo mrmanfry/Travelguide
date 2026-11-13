@@ -638,6 +638,16 @@ def orchestrazione(brief: Brief, on_progress=None, anteprima: bool = False) -> i
     except Exception as exc:
         print(f"Mappe non preparate: {exc!r}", file=sys.stderr)
 
+    # La copertina illustrata: soggetto dalla libreria, atmosfera e titolo
+    # scelti per questo viaggio. Senza un soggetto, resta quella con la mappa.
+    try:
+        from src.chapter_runner import make_client
+        from src.scelta_copertina import prepara_copertina
+
+        prepara_copertina(brief, libro, client=make_client())
+    except Exception as exc:
+        print(f"Copertina non preparata: {exc!r}", file=sys.stderr)
+
     # Il PDF impaginato: è la copia che il lettore si porta dietro. Se
     # l'impaginazione fallisce il libro resta comunque consegnato — un problema
     # di stampa non deve cancellare cinque ore di scrittura.

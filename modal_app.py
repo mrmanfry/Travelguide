@@ -435,6 +435,14 @@ def genera_mappe(job_id: str, rifai: bool = False, solo: list | None = None) -> 
     assignments = carica_outline(brief)
     libro = costruisci_libro(brief, assignments, carica_stato(brief, assignments))
     esiti = prepara_mappe(brief, assignments, libro, rifai=rifai, solo=solo)
+    if solo is None or "copertina" in solo:
+        try:
+            from src.chapter_runner import make_client
+            from src.scelta_copertina import prepara_copertina
+
+            prepara_copertina(brief, libro, client=make_client(), rifai=rifai or bool(solo))
+        except Exception as exc:
+            print(f"Job {job_id}: copertina non preparata: {exc!r}", file=sys.stderr)
     output_volume.commit()
 
     # Il PDF si rifà in un file accanto e poi prende il posto del vecchio: chi
@@ -850,7 +858,7 @@ def web():
 
         Solo per libri completi: su un libro che si sta ancora scrivendo le
         mappe le prepara il motore da sé, alla fine. Con {"rifai": true} rifà
-        anche quelle che ci sono già; con {"solo": [4, "viaggio"]} solo quelle.
+        anche quelle che ci sono già; con {"solo": [4, "viaggio", "copertina"]} solo quelle.
         """
         import re
 

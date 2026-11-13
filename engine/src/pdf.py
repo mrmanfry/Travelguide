@@ -620,7 +620,39 @@ def scrivi_pdf(brief: Brief, libro: dict, destinazione: Path | None = None) -> P
     # base_url sulla cartella di stampa: da lì si risolvono il foglio di stile
     # e i caratteri, che vengono incorporati nel PDF.
     HTML(string=documento, base_url=str(STAMPA_DIR) + "/").write_pdf(str(path))
+    _metti_copertina(brief, libro, path)
     return path
+
+
+def _metti_copertina(brief: Brief, libro: dict, path: Path) -> None:
+    """La copertina illustrata come prima pagina del PDF, se il libro ne ha una.
+
+    Così anche la copia digitale si apre come un libro. Se qualcosa va storto
+    il PDF resta com'era, senza copertina: un libro senza prima pagina
+    illustrata è sempre meglio di nessun libro.
+    """
+    try:
+        from src.scelta_copertina import progetto_copertina
+
+        progetto = progetto_copertina(brief.brief_id)
+        if not progetto:
+            return
+        from pypdf import PdfReader, PdfWriter
+
+        from src.copertina_illustrata import scrivi_copertina
+
+        fronte = path.with_name(path.stem + ".fronte.pdf")
+        scrivi_copertina(brief, libro, 0.0, progetto, fronte, solo_fronte=True)
+        uscita = PdfWriter()
+        uscita.append(PdfReader(str(fronte)))
+        uscita.append(PdfReader(str(path)), import_outline=True)
+        nuovo = path.with_name(path.stem + ".con-copertina.pdf")
+        with open(nuovo, "wb") as f:
+            uscita.write(f)
+        nuovo.replace(path)
+        fronte.unlink(missing_ok=True)
+    except Exception as exc:
+        print(f"Copertina nel PDF non riuscita: {exc!r}")
 
 
 def scrivi_pdf_stampa(brief: Brief, libro: dict, destinazione: Path) -> tuple[Path, int]:

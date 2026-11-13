@@ -76,10 +76,10 @@ def valida_progetto(p: dict) -> list[str]:
     return errori
 
 
-def _svg(progetto: dict, larghezza: float, altezza: float, fronte_x: float) -> str:
+def _svg(progetto: dict, larghezza: float, altezza: float, fronte_x: float,
+         ab: float = ABBONDANZA_MM) -> str:
     """Il fondo di tutta la copertina distesa, in millimetri."""
     pw, ph = PAGINA_MM
-    ab = ABBONDANZA_MM
     oriz = ab + ph * ORIZZONTE
     cielo = progetto["cielo"]
     fermate = "".join(f'<stop offset="{i / (len(cielo) - 1):.3f}" stop-color="{c}"/>'
@@ -122,19 +122,23 @@ def _svg(progetto: dict, larghezza: float, altezza: float, fronte_x: float) -> s
 
 
 def costruisci_html(brief: Brief, libro: dict, dorso_mm: float, progetto: dict,
-                    cartella_svg: Path) -> str:
-    ab = ABBONDANZA_MM
+                    cartella_svg: Path, solo_fronte: bool = False) -> str:
+    """La copertina distesa per la tipografia; con `solo_fronte`, la prima
+    pagina del PDF digitale: il fronte da solo, 148×210, senza abbondanza."""
+    ab = 0.0 if solo_fronte else ABBONDANZA_MM
     pw, ph = PAGINA_MM
-    larghezza = 2 * ab + 2 * pw + dorso_mm
+    if solo_fronte:
+        dorso_mm = 0.0
+    larghezza = pw if solo_fronte else 2 * ab + 2 * pw + dorso_mm
     altezza = 2 * ab + ph
-    fronte_x = ab + pw + dorso_mm
+    fronte_x = 0.0 if solo_fronte else ab + pw + dorso_mm
     dorso_x = ab + pw
     oriz = ab + ph * ORIZZONTE
     t = progetto["testo"]
 
     cartella_svg.mkdir(parents=True, exist_ok=True)
-    svg = cartella_svg / "copertina_fondo.svg"
-    svg.write_text(_svg(progetto, larghezza, altezza, fronte_x), encoding="utf-8")
+    svg = cartella_svg / ("copertina_fronte.svg" if solo_fronte else "copertina_fondo.svg")
+    svg.write_text(_svg(progetto, larghezza, altezza, fronte_x, ab), encoding="utf-8")
 
     nomi = _elenco_nomi(brief.viaggiatori.nomi)
     date = _date(brief)
@@ -152,7 +156,7 @@ def costruisci_html(brief: Brief, libro: dict, dorso_mm: float, progetto: dict,
     libro_titolo = titolo_libro(brief, libro)
 
     dorso = ""
-    if dorso_mm >= DORSO_MIN_TESTO_MM:
+    if not solo_fronte and dorso_mm >= DORSO_MIN_TESTO_MM:
         corpo_pt = min(8.5, (dorso_mm - 2.2) / 25.4 * 72)
         dorso = f"""
 <div class="dorso" style="left:{dorso_x + dorso_mm / 2:.3f}mm; top:{ab + ph / 2:.3f}mm;
@@ -160,6 +164,16 @@ def costruisci_html(brief: Brief, libro: dict, dorso_mm: float, progetto: dict,
   <span class="marchio-dorso">{html.escape(config.MARCHIO)}</span>
   <span class="titolo-dorso">{html.escape(libro_titolo)}</span>
 </div>"""
+
+    retro = "" if solo_fronte else f"""<div class="retro-testo" style="left:{ab + 20:.3f}mm; top:{ab + 30:.3f}mm">
+  {f'<p class="attacco">{html.escape(attacco)}</p>' if attacco else ''}
+</div>
+<div class="retro-testo" style="left:{ab + 20:.3f}mm; top:{oriz + 17:.3f}mm">
+  <p class="dedica">Questo libro è stato scritto per {html.escape(per_chi)}, per questo viaggio e per
+  queste date: non esiste in nessun'altra copia.</p>
+</div>
+<div class="retro-testo marchio" style="left:{ab + 20:.3f}mm; top:{ab + ph - 14:.3f}mm; text-align:left">{html.escape(config.MARCHIO)}</div>
+"""
 
     return f"""<!doctype html><html lang="it"><head><meta charset="utf-8">
 <link rel="stylesheet" href="libro.css">
@@ -214,26 +228,20 @@ body {{ position: relative; width: {larghezza:.3f}mm; height: {altezza:.3f}mm; c
   {f'<p class="itinerario">{html.escape(itinerario)}</p>' if itinerario else ''}
 </div>
 <div class="blocco marchio" style="left:{fronte_x:.3f}mm; top:{ab + ph - 14:.3f}mm">{html.escape(config.MARCHIO)}</div>
-<div class="retro-testo" style="left:{ab + 20:.3f}mm; top:{ab + 30:.3f}mm">
-  {f'<p class="attacco">{html.escape(attacco)}</p>' if attacco else ''}
-</div>
-<div class="retro-testo" style="left:{ab + 20:.3f}mm; top:{oriz + 17:.3f}mm">
-  <p class="dedica">Questo libro è stato scritto per {html.escape(per_chi)}, per questo viaggio e per
-  queste date: non esiste in nessun'altra copia.</p>
-</div>
-<div class="retro-testo marchio" style="left:{ab + 20:.3f}mm; top:{ab + ph - 14:.3f}mm; text-align:left">{html.escape(config.MARCHIO)}</div>
+{retro}
 {dorso}
 </body></html>"""
 
 
 def scrivi_copertina(brief: Brief, libro: dict, dorso_mm: float, progetto: dict,
-                     destinazione: Path) -> Path:
+                     destinazione: Path, solo_fronte: bool = False) -> Path:
+    """La copertina in PDF: distesa per la tipografia, o il solo fronte per il PDF."""
     from weasyprint import HTML
 
     errori = valida_progetto(progetto)
     if errori:
         raise ValueError("Progetto di copertina non valido: " + "; ".join(errori))
     destinazione.parent.mkdir(parents=True, exist_ok=True)
-    HTML(string=costruisci_html(brief, libro, dorso_mm, progetto, destinazione.parent),
+    HTML(string=costruisci_html(brief, libro, dorso_mm, progetto, destinazione.parent, solo_fronte),
          base_url=str(STAMPA_DIR) + "/").write_pdf(str(destinazione))
     return destinazione
