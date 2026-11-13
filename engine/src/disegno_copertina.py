@@ -175,6 +175,8 @@ def _giudizio_istruzioni(nome: str, luogo: str, cieco: dict) -> str:
 
 Un lettore l'ha guardata con il titolo coperto, senza sapere cosa doveva essere, e ha detto: «{cieco.get("luogo")}» (sicurezza {cieco.get("sicurezza")}/10).
 
+Il cielo in sfumatura, il sole o la luna, la fascia scura sotto l'orizzonte e l'ovale di riflesso sotto la sagoma sono lo stile fisso della collana, uguale per tutti i libri: non sono difetti e non si giudicano. Si giudica solo la sagoma.
+
 Il compito della copertina è uno: chi la guarda deve pensare subito a {luogo}. Non serve che distingua {nome} da un monumento simile dello stesso luogo: una moschea ottomana su una guida di Istanbul fa il suo lavoro. Conta che non sembri un altro paese, un'altra epoca o un edificio qualsiasi.
 - "sembra": cosa sembra a prima vista, in poche parole.
 - "riconoscibile": true se il lettore ha nominato {nome} o comunque {luogo} (la stessa città o lo stesso paese), con sicurezza almeno 6; oppure se chiunque conosca {luogo} ci penserebbe subito.
