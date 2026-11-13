@@ -40,7 +40,8 @@ SAGOMA_MM = 60.0      # altezza massima della sagoma sopra l'orizzonte
 COLORE_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 # Solo comandi assoluti (maiuscoli): così ogni numero è una coordinata vera, e
 # il controllo che la sagoma stia nel riquadro 1000×400 è un controllo vero.
-PATH_RE = re.compile(r"^[MLHVCSQZ0-9\s,.\-]+$")
+# Niente H e V, che hanno un numero solo: così i numeri vanno sempre a coppie x,y.
+PATH_RE = re.compile(r"^[MLCSQZ0-9\s,.\-]+$")
 
 
 def valida_progetto(p: dict) -> list[str]:
@@ -61,9 +62,12 @@ def valida_progetto(p: dict) -> list[str]:
             errori.append(f"sagome[{i}]: tracciato non valido")
         if not COLORE_RE.match(str(s.get("colore", ""))):
             errori.append(f"sagome[{i}]: colore non valido")
-        if not re.match(r"^\s*M\s*0\s*,\s*400\b", d) and i == 0:
-            errori.append("sagome[0]: deve cominciare da M0,400, sulla linea di base")
         numeri = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", d)]
+        # Ai bordi del fronte una sagoma tocca solo la linea di base: altrimenti,
+        # dove il fronte incontra il dorso, la forma si interrompe a scalino.
+        coppie = list(zip(numeri[0::2], numeri[1::2]))
+        if any((x <= 2 or x >= 998) and y < 398 for x, y in coppie):
+            errori.append(f"sagome[{i}]: ai bordi (x=0 e x=1000) deve stare sulla base, y=400")
         if numeri and (min(numeri) < -5 or max(numeri) > 1005):
             errori.append(f"sagome[{i}]: esce dal riquadro 1000×400")
     titolo = str(p.get("titolo", "")).strip()
