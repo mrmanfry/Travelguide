@@ -21,7 +21,23 @@ from pathlib import Path
 
 from src import config, lulu
 
-RICARICO_EUR = float(os.environ.get("GUIDE_STAMPA_RICARICO_EUR", "0"))
+# Il prezzo al cliente: costo di Lulu (stampa, servizio, spedizione e IVA) più
+# un ricarico fisso, arrotondato in su al primo ,90 — 23,90 e non 23,28.
+RICARICO_EUR = float(os.environ.get("GUIDE_STAMPA_RICARICO_EUR", "6"))
+
+
+def prezzo_pulito(costo_lulu: float, ricarico: float | None = None) -> float:
+    """Il primo prezzo che finisce in ,90 e non sta sotto costo più ricarico.
+
+    In centesimi interi, per non far decidere un arrotondamento ai decimali
+    binari: 17,28 + 6 = 23,28 → 23,90; 17,90 + 6 = 23,90 → 23,90; 18,95 + 6 → 25,90.
+    """
+    ricarico = RICARICO_EUR if ricarico is None else ricarico
+    minimo = math.ceil(round((costo_lulu + ricarico) * 100, 4))
+    prezzo = (minimo // 100) * 100 + 90
+    if prezzo < minimo:
+        prezzo += 100
+    return prezzo / 100
 
 
 def cartella(brief_id: str) -> Path:
@@ -95,7 +111,7 @@ def preventivo(brief, libro_pdf: Path, indirizzo: dict) -> dict:
             "consegna_max": str(arrivo_max or "")[:10] or None,
             "tracciabile": bool(s.get("traceable")),
             "costo_lulu_eur": totale,
-            "prezzo_eur": math.ceil((totale + RICARICO_EUR) * 100) / 100,
+            "prezzo_eur": prezzo_pulito(totale),
             "in_tempo": in_tempo,
         })
     opzioni.sort(key=lambda o: o["prezzo_eur"])
