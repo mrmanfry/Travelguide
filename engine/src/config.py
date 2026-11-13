@@ -72,6 +72,16 @@ MODEL_MAPPE = "claude-haiku-4-5"
 # diverso. Una chiamata per libro: Sonnet, a sforzo basso, qualche centesimo.
 MODEL_GITE = "claude-sonnet-5-5"
 EFFORT_GITE = "low"
+# La copertina di un luogo che la libreria non ha: la sagoma si disegna al
+# momento. Disegnare un monumento in coordinate è ragionamento spaziale, e un
+# disegno sbagliato è la prima cosa che il cliente vede: Opus, sforzo alto.
+# Un giudice separato guarda la copertina resa in PNG; si ridisegna al massimo
+# COPERTINA_GIRI volte, poi o passa o resta la copertina con la mappa.
+COPERTINA_AL_VOLO = os.environ.get("GUIDE_COPERTINA_AL_VOLO", "1") != "0"
+MODEL_COPERTINA = "claude-opus-5-5"
+EFFORT_COPERTINA = "high"
+COPERTINA_GIRI = 3
+COPERTINA_VOTO_MIN = 8
 MAX_TOKENS_MAPPE = 6000
 MAPPE_MAX_LUOGHI = 30       # oltre, la legenda non sta in una pagina
 MAPPE_MIN_LUOGHI = 4        # sotto, una pagina di mappa non orienta nessuno

@@ -54,6 +54,7 @@ def modelli_senza_prezzo() -> list[str]:
         config.MODEL_COERENZA,
         config.MODEL_MAPPE,
         config.MODEL_GITE,
+        config.MODEL_COPERTINA,
     }
     return sorted(m for m in configurati if _prezzo_modello(m) is None)
 

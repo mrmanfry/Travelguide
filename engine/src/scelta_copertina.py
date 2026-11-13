@@ -55,6 +55,14 @@ def carica_libreria() -> dict:
         return {}
 
 
+def libreria_completa() -> dict:
+    """La libreria approvata più le sagome disegnate al volo per libri passati.
+    A parità di chiave vince la libreria: è quella rivista a mano."""
+    from src.disegno_copertina import carica_disegnate
+
+    return {**carica_disegnate(), **carica_libreria()}
+
+
 def file_copertina(brief_id: str) -> Path:
     return config.output_root() / brief_id / "copertina.json"
 
@@ -166,10 +174,10 @@ def prepara_copertina(brief, libro: dict, client=None, rifai: bool = False) -> d
     js = file_copertina(brief.brief_id)
     if js.exists() and not rifai:
         return progetto_copertina(brief.brief_id)
-    libreria = carica_libreria()
+    libreria = libreria_completa()
     if not libreria:
         return None
-    scelta, costo, da = None, 0.0, "motore"
+    scelta, costo, da, disegno = None, 0.0, "motore", None
     if client is not None:
         try:
             scelta, costo = scelta_del_modello(client, brief, libro, libreria)
@@ -178,6 +186,24 @@ def prepara_copertina(brief, libro: dict, client=None, rifai: bool = False) -> d
             print(f"Copertina: la scelta del modello non è riuscita ({exc!r}), scelgo io.", file=sys.stderr)
     if scelta is None:
         scelta, da = scelta_del_motore(brief, libreria), "motore"
+    if not (scelta and scelta.get("soggetto")) and client is not None and config.COPERTINA_AL_VOLO:
+        # Nessun soggetto per questo viaggio: si disegna, e se il disegno non
+        # passa il giudice resta la mappa.
+        from src.disegno_copertina import _registra, chiave_libera, disegna_soggetto
+
+        try:
+            esito = disegna_soggetto(client, brief, libro, carica_libreria())
+            costo += esito["costo_usd"]
+            disegno = {"giri": esito["giri"], "costo_usd": esito["costo_usd"]}
+            if esito["voce"]:
+                chiave = chiave_libera(esito["voce"]["nome"], libreria)
+                _registra(chiave, esito["voce"], esito["png"])
+                libreria[chiave] = esito["voce"]
+                scelta = {"soggetto": chiave, "atmosfera": esito["voce"]["atmosfera"], "titolo": esito["titolo"]}
+                da = config.MODEL_COPERTINA
+                disegno["soggetto"] = chiave
+        except Exception as exc:
+            print(f"Copertina: il disegno al volo non è riuscito ({exc!r}), resta la mappa.", file=sys.stderr)
     progetto = None
     if scelta and scelta.get("soggetto"):
         progetto = componi(libreria[scelta["soggetto"]], scelta["atmosfera"], scelta["titolo"])
@@ -187,7 +213,8 @@ def prepara_copertina(brief, libro: dict, client=None, rifai: bool = False) -> d
             progetto = None
     js.parent.mkdir(parents=True, exist_ok=True)
     js.write_text(json.dumps({"scelta": scelta, "scelto_da": da, "costo_usd": round(costo, 4),
-                              "progetto": progetto}, ensure_ascii=False, indent=1), encoding="utf-8")
+                              "disegno": disegno, "progetto": progetto}, ensure_ascii=False, indent=1),
+                  encoding="utf-8")
     if progetto:
         print(f"Copertina: {scelta['soggetto']}, atmosfera {scelta['atmosfera']}, «{scelta['titolo']}» (scelta: {da}).")
     else:

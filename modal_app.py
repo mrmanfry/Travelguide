@@ -240,6 +240,9 @@ engine_image = (
         "pillow>=10",
         # Contare le pagine del libro per il preventivo di stampa.
         "pypdf>=4",
+        # La copertina disegnata al volo si guarda come immagine prima di
+        # tenerla: il fronte del PDF reso in PNG per il giudice.
+        "pypdfium2>=4",
     )
     # Natural Earth per la mappa del paese: confini, regioni, laghi, mari. Si
     # scarica una volta, quando si costruisce l'immagine, dalla versione fissata:
@@ -510,6 +513,56 @@ def ordina_stampa(job_id: str, richiesta: dict, base_url: str) -> dict:
     print(f"Stampa {job_id}: ordine Lulu {dati['lulu']['id']} ({dati['lulu']['ambiente']}), "
           f"{dati['file']['pagine']} pagine, dorso {dati['file']['dorso_mm']} mm.")
     return {"lulu_id": dati["lulu"]["id"], "stato": dati["lulu"]["stato"]}
+
+
+@app.function(
+    image=engine_image,
+    volumes={"/data": output_volume},
+    secrets=[anthropic_secret],
+    timeout=30 * 60,
+    memory=2048,
+)
+def prova_copertina(luogo: str, nomi: str = "Ludovica,Filippo") -> str:
+    """Disegna al volo la copertina di un viaggio finto a `luogo`, senza libro.
+
+    Per vedere come se la cava il disegno al volo prima che tocchi a un cliente.
+    Il PNG finisce sulla Volume in output/_prove_copertina/<luogo>/: si scarica
+    con `modal volume get`. Torna una stringa (il riepilogo in JSON), non un
+    dizionario con oggetti del motore, perché la si legge da fuori.
+    """
+    _prepara_ambiente()
+    import json
+    import os
+    import re
+    from pathlib import Path
+
+    chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if chiave:
+        os.environ["GUIDE_ENGINE_KEY"] = chiave
+    from schema.brief import Brief
+    from src.chapter_runner import make_client
+    from src.copertina_illustrata import scrivi_copertina
+    from src.scelta_copertina import file_copertina, prepara_copertina
+
+    output_volume.reload()
+    bid = "_prove_copertina/" + re.sub(r"[^a-z0-9]+", "_", luogo.lower()).strip("_")
+    brief = Brief.model_validate({"brief_id": bid, "date": {"inizio": "2027-04-10", "fine": "2027-04-15"},
+                                  "tappe": [{"ordine": 1, "luogo": luogo, "notti": 5}],
+                                  "viaggiatori": {"nomi": [n.strip() for n in nomi.split(",") if n.strip()]}})
+    progetto = prepara_copertina(brief, {"capitoli": []}, client=make_client(), rifai=True)
+    d = Path(OUTPUT_ROOT) / bid
+    if progetto:
+        scrivi_copertina(brief, {"capitoli": []}, 0, progetto, d / "fronte.pdf", solo_fronte=True)
+        import pypdfium2 as pdfium
+
+        doc = pdfium.PdfDocument(str(d / "fronte.pdf"))
+        doc[0].render(scale=2).to_pil().convert("RGB").save(d / "fronte.png")
+        doc.close()
+    output_volume.commit()
+    dati = json.loads(file_copertina(bid).read_text(encoding="utf-8"))
+    return json.dumps({"cartella": f"output/{bid}", "scelta": dati.get("scelta"), "scelto_da": dati.get("scelto_da"),
+                       "costo_usd": dati.get("costo_usd"), "disegno": dati.get("disegno")},
+                      ensure_ascii=False, indent=1)
 
 
 @app.function(image=engine_image, secrets=[lulu_secret], timeout=120)
