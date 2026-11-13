@@ -22,6 +22,9 @@ SERVER = {"sandbox": "https://api.sandbox.lulu.com", "produzione": "https://api.
 # opaca. Il colore serve: mappe, bolli, linguette, titoli in terracotta.
 PRODOTTO = os.environ.get("GUIDE_LULU_PRODOTTO", "0583X0827.FC.STD.PB.080CW444.MXX")
 PAGINE_MIN = 32  # sotto, la brossura non si fa
+# Davanti alle API di Lulu c'è Cloudflare, che respinge (errore 1010) le
+# richieste con lo User-Agent di serie di Python: diciamo chi siamo.
+USER_AGENT = "StradaLeggendo-Motore/1.0 (+print-api)"
 
 
 class ErroreLulu(RuntimeError):
@@ -56,7 +59,7 @@ def _token() -> str:
     req = urllib.request.Request(
         f"{_base()}/auth/realms/glasstree/protocol/openid-connect/token",
         data=b"grant_type=client_credentials",
-        headers={"Content-Type": "application/x-www-form-urlencoded",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": USER_AGENT,
                  "Authorization": "Basic " + base64.b64encode(f"{k}:{s}".encode()).decode()})
     with urllib.request.urlopen(req, timeout=30) as r:
         dati = json.loads(r.read())
@@ -65,7 +68,8 @@ def _token() -> str:
 
 
 def _chiama(metodo: str, percorso: str, corpo: dict | None = None, autenticata: bool = True):
-    intestazioni = {"Content-Type": "application/json", "Accept": "application/json"}
+    intestazioni = {"Content-Type": "application/json", "Accept": "application/json",
+                    "User-Agent": USER_AGENT}
     if autenticata:
         intestazioni["Authorization"] = f"Bearer {_token()}"
     req = urllib.request.Request(f"{_base()}{percorso}", method=metodo, headers=intestazioni,

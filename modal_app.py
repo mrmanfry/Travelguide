@@ -518,7 +518,14 @@ def collega_lulu(url_motore: str = "https://filippomanfroni--travelguide-web.mod
     print(esito)
     if not esito.startswith("OK"):
         return esito
-    w = lulu.webhook(url_motore.rstrip("/") + "/lulu/webhook")
+    # Un errore torna come testo: un'eccezione del motore, dall'altra parte,
+    # arriva come «No module named 'src'» e non si legge.
+    try:
+        w = lulu.webhook(url_motore.rstrip("/") + "/lulu/webhook")
+    except Exception as exc:
+        riga = f"{esito} Ma il webhook non si è iscritto: {exc}"
+        print(riga)
+        return riga
     riga = f"{esito} Webhook {w.get('id')} su {w.get('url')}, attivo: {w.get('is_active')}."
     print(riga)
     return riga
