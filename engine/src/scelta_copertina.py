@@ -192,7 +192,8 @@ def prepara_copertina(brief, libro: dict, client=None, rifai: bool = False) -> d
         from src.disegno_copertina import _registra, chiave_libera, disegna_soggetto
 
         try:
-            esito = disegna_soggetto(client, brief, libro, carica_libreria())
+            esito = disegna_soggetto(client, brief, libro, carica_libreria(),
+                                     cartella_giri=js.parent / "copertina_giri")
             costo += esito["costo_usd"]
             disegno = {"giri": esito["giri"], "costo_usd": esito["costo_usd"]}
             if esito["voce"]:

@@ -170,14 +170,16 @@ Campi: "nome" (il nome del soggetto in italiano), "luoghi" (le tappe e i paesi a
 CIECO = """Questa è la copertina di una guida di viaggio; il titolo è coperto. Sull'orizzonte c'è una sagoma in controluce: quale monumento o luogo è? Rispondi con il nome ("luogo") e quanto ne sei sicuro da 1 a 10 ("sicurezza"). Se non lo riconosci, scrivi cosa sembra."""
 
 
-def _giudizio_istruzioni(nome: str, cieco: dict) -> str:
-    return f"""Questa è la copertina di una guida di viaggio. Al centro, sull'orizzonte, c'è una sagoma in controluce che dovrebbe essere: {nome}.
+def _giudizio_istruzioni(nome: str, luogo: str, cieco: dict) -> str:
+    return f"""Questa è la copertina di una guida di viaggio per {luogo}. Al centro, sull'orizzonte, c'è una sagoma in controluce che dovrebbe essere: {nome}.
 
 Un lettore l'ha guardata con il titolo coperto, senza sapere cosa doveva essere, e ha detto: «{cieco.get("luogo")}» (sicurezza {cieco.get("sicurezza")}/10).
+
+Il compito della copertina è uno: chi la guarda deve pensare subito a {luogo}. Non serve che distingua {nome} da un monumento simile dello stesso luogo: una moschea ottomana su una guida di Istanbul fa il suo lavoro. Conta che non sembri un altro paese, un'altra epoca o un edificio qualsiasi.
 - "sembra": cosa sembra a prima vista, in poche parole.
-- "riconoscibile": true solo se il lettore l'ha riconosciuto davvero (ha nominato {nome}, o lo stesso luogo, con sicurezza almeno 6), oppure se un lettore che conosce {nome} lo riconoscerebbe senza il titolo.
-- "voto": da 1 a 10. 9–10: un manifesto di viaggio fatto bene; 8: si riconosce, piccoli difetti; 6–7: si capisce solo sapendolo; sotto 6: sembra altro.
-- "problemi": i difetti concreti, ognuno con il punto dove sta e cosa correggere (proporzioni sbagliate, parti staccate che nel vero si toccano, forme che sembrano altro, dettagli troppo piccoli o nascosti dal riflesso scuro in basso, colori che stonano, il sole che copre il soggetto). Vuoto se non ce ne sono."""
+- "riconoscibile": true se il lettore ha nominato {nome} o comunque {luogo} (la stessa città o lo stesso paese), con sicurezza almeno 6; oppure se chiunque conosca {luogo} ci penserebbe subito.
+- "voto": da 1 a 10. 9–10: un manifesto di viaggio fatto bene; 8: fa pensare subito a {luogo}, piccoli difetti; 6–7: fa pensare a {luogo} solo sapendolo; sotto 6: sembra altro.
+- "problemi": i difetti concreti che si possono correggere nel disegno, ognuno con il punto dove sta e cosa fare (proporzioni sbagliate, parti staccate che nel vero si toccano, forme che sembrano altro, dettagli troppo piccoli o nascosti dal riflesso scuro in basso, colori che stonano, il sole che copre il soggetto). Non elencare come problema che esistono monumenti simili. Vuoto se non ce ne sono."""
 
 
 def _testo(risposta) -> str:
@@ -240,9 +242,11 @@ def _immagine(png: bytes) -> dict:
                                         "data": base64.standard_b64encode(png).decode()}}
 
 
-def disegna_soggetto(client, brief, libro: dict, libreria: dict) -> dict:
+def disegna_soggetto(client, brief, libro: dict, libreria: dict, cartella_giri: Path | None = None) -> dict:
     """Disegna, giudica, ridisegna. Ritorna {voce, titolo, png, giri, costo_usd};
-    voce è None se il viaggio non ha un'icona o se nessun disegno ha passato il giudice."""
+    voce è None se il viaggio non ha un'icona o se nessun disegno ha passato il giudice.
+    In `cartella_giri`, se c'è, il PNG di ogni giro, anche di quelli bocciati:
+    per vedere cosa ha disegnato e cosa ha detto il giudice."""
     from src import scelta_copertina as sc
     from src.copertina_illustrata import valida_progetto
 
@@ -270,14 +274,19 @@ def disegna_soggetto(client, brief, libro: dict, libreria: dict) -> dict:
         costo += c
         png = _png(brief, libro, progetto)
         _, giudizio, c = _chiama(client, [{"role": "user", "content": [
-            _immagine(png), {"type": "text", "text": _giudizio_istruzioni(voce["nome"], cieco)}]}],
+            _immagine(png), {"type": "text", "text": _giudizio_istruzioni(voce["nome"], titolo, cieco)}]}],
             SCHEMA_GIUDIZIO, 8000)
         costo += c
+        if cartella_giri is not None:
+            cartella_giri.mkdir(parents=True, exist_ok=True)
+            (cartella_giri / f"giro_{giro}.png").write_bytes(png)
         voto = int(giudizio.get("voto") or 0)
         passa = bool(giudizio.get("riconoscibile")) and voto >= config.COPERTINA_VOTO_MIN
         giri.append({"giro": giro, "voto": voto, "alla_cieca": cieco, "sembra": giudizio.get("sembra"),
                      "problemi": giudizio.get("problemi") or []})
-        print(f"Copertina al volo, giro {giro}: {voce['nome']}, voto {voto}, sembra «{giudizio.get('sembra')}».")
+        print(f"Copertina al volo, giro {giro}: {voce['nome']}; alla cieca «{cieco.get('luogo')}» "
+              f"({cieco.get('sicurezza')}/10); voto {voto}{' (passa)' if passa else ''}; "
+              f"difetti: {'; '.join(giudizio.get('problemi') or []) or 'nessuno'}.")
         if passa and (migliore is None or voto > migliore["voto"]):
             migliore = {"voce": voce, "titolo": titolo, "png": png, "voto": voto}
         if passa:
