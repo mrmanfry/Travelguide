@@ -69,7 +69,14 @@ def progetto_copertina(brief_id: str) -> dict | None:
 
 
 def componi(voce: dict, atmosfera: str, titolo: str) -> dict:
-    """Soggetto della libreria + atmosfera = il progetto da disegnare."""
+    """Soggetto della libreria + atmosfera = il progetto da disegnare.
+
+    Un soggetto può stare bene solo in certe atmosfere (le vele ruggine di Ha
+    Long spariscono nel tramonto arancio): fuori da quelle, vale la sua.
+    """
+    adatte = voce.get("atmosfere") or list(ATMOSFERE)
+    if atmosfera not in adatte:
+        atmosfera = voce.get("atmosfera") if voce.get("atmosfera") in adatte else adatte[0]
     a = ATMOSFERE[atmosfera]
     progetto = {"titolo": titolo, "sopra": "una guida di viaggio", "cielo": list(a["cielo"]),
                 "sagome": voce["sagome"], "primo_piano": a["primo_piano"], "riflesso": a["riflesso"],
@@ -110,7 +117,8 @@ def scelta_del_motore(brief, libreria: dict) -> dict | None:
 def _istruzioni(brief, libro: dict, libreria: dict) -> str:
     from src.copertina import _attacco
 
-    voci = "\n".join(f'- "{k}": {v["nome"]} (luoghi: {", ".join(v["luoghi"])}; tratti: {v["tratti"]})'
+    voci = "\n".join(f'- "{k}": {v["nome"]} (luoghi: {", ".join(v["luoghi"])}; tratti: {v["tratti"]}; '
+                     f'atmosfere: {", ".join(v.get("atmosfere") or ATMOSFERE)})'
                      for k, v in libreria.items())
     quando = (f"dal {brief.date.inizio} al {brief.date.fine}" if brief.date.inizio else "date non note")
     return f"""Scegli la copertina di una guida di viaggio scritta per un viaggio preciso.

@@ -63,11 +63,12 @@ def valida_progetto(p: dict) -> list[str]:
         if not COLORE_RE.match(str(s.get("colore", ""))):
             errori.append(f"sagome[{i}]: colore non valido")
         numeri = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", d)]
-        # Ai bordi del fronte una sagoma tocca solo la linea di base: altrimenti,
-        # dove il fronte incontra il dorso, la forma si interrompe a scalino.
+        # Al bordo sinistro una sagoma tocca solo la linea di base: lì il fronte
+        # incontra il dorso, e una forma che lo tocca più in alto si interrompe a
+        # scalino. Il bordo destro è il taglio del libro: lì si può andare al vivo.
         coppie = list(zip(numeri[0::2], numeri[1::2]))
-        if any((x <= 2 or x >= 998) and y < 398 for x, y in coppie):
-            errori.append(f"sagome[{i}]: ai bordi (x=0 e x=1000) deve stare sulla base, y=400")
+        if any(x <= 2 and y < 398 for x, y in coppie):
+            errori.append(f"sagome[{i}]: al bordo sinistro (x=0) deve stare sulla base, y=400")
         if numeri and (min(numeri) < -5 or max(numeri) > 1005):
             errori.append(f"sagome[{i}]: esce dal riquadro 1000×400")
     titolo = str(p.get("titolo", "")).strip()
