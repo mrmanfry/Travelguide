@@ -22,6 +22,8 @@ from difflib import SequenceMatcher
 from itertools import combinations
 from pathlib import Path
 
+from src import config
+
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 
 META_MARK = "<!--META"
@@ -60,7 +62,7 @@ STOPWORDS_CAP = {
 
 
 def _guide_dir(brief_id: str) -> Path:
-    return ENGINE_ROOT / "output" / brief_id
+    return config.output_root() / brief_id
 
 
 def _brief_id_da_input(path_arg: str) -> str:

@@ -1,0 +1,27 @@
+/* La copia da stampare: lo stesso libro, con l'abbondanza per la tipografia.
+ *
+ * Lulu chiede 3,175 mm (1/8 di pollice) di abbondanza su ogni lato: la pagina
+ * si stampa più grande e poi si taglia, e quello che arriva al bordo deve
+ * continuare oltre il taglio, perché la lama non è mai precisa al millimetro.
+ * Qui arrivano al bordo solo il fondo carta e le linguette sul taglio: le
+ * linguette si allungano verso l'esterno di tanto quanto l'abbondanza, e il
+ * loro numero resta centrato nella parte che si vedrà.
+ *
+ * Si aggiunge DOPO libro.css: cambia solo quello che la stampa richiede.
+ */
+
+@page { bleed: 3.175mm; }
+
+@page tappa:right        { @right-middle  { margin-right: -3.175mm; padding-right: 3.175mm; } }
+@page tappa:left         { @left-middle   { margin-left:  -3.175mm; padding-left:  3.175mm; } }
+@page collegamento:right { @right-top     { margin-right: -3.175mm; padding-right: 3.175mm; } }
+@page collegamento:left  { @left-top      { margin-left:  -3.175mm; padding-left:  3.175mm; } }
+@page cornice:right      { @right-bottom  { margin-right: -3.175mm; padding-right: 3.175mm; } }
+@page cornice:left       { @left-bottom   { margin-left:  -3.175mm; padding-left:  3.175mm; } }
+
+/* In un libro di carta i rimandi non si cliccano. */
+a { color: inherit; text-decoration: none; }
+
+/* La pagina bianca in fondo, quando serve a fare pari: la brossura si piega a
+   fogli, e un numero di pagine dispari lo completa la tipografia a modo suo. */
+.bianca-finale { page: frontespizio; break-before: page; }
