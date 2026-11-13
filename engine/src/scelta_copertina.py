@@ -71,8 +71,8 @@ def progetto_copertina(brief_id: str) -> dict | None:
 def componi(voce: dict, atmosfera: str, titolo: str) -> dict:
     """Soggetto della libreria + atmosfera = il progetto da disegnare.
 
-    Un soggetto può stare bene solo in certe atmosfere (le vele ruggine di Ha
-    Long spariscono nel tramonto arancio): fuori da quelle, vale la sua.
+    Ogni soggetto si usa solo nelle atmosfere in cui è stato visto e approvato
+    (voce["atmosfere"]): fuori da quelle, vale la sua.
     """
     adatte = voce.get("atmosfere") or list(ATMOSFERE)
     if atmosfera not in adatte:
@@ -132,7 +132,7 @@ I soggetti disponibili (sagome già disegnate):
 Le atmosfere: "alba" (indaco, rosa, pesca, sole rosso), "sera" (blu notte, rame, ambra, luna chiara), "tramonto" (prugna, rosso, arancio, stelle), "notte" (blu profondo, luna piccola, stelle).
 
 Scegli:
-- "soggetto": la chiave del soggetto che appartiene davvero a questo viaggio, il più riconoscibile; null se nessuno è di questo viaggio. Non scegliere mai un soggetto di un altro paese.
+- "soggetto": la chiave del soggetto che appartiene davvero a questo viaggio, il più riconoscibile; null se nessuno è di questo viaggio. Non scegliere mai un soggetto di un altro paese. Se più soggetti sono dello stesso luogo, scegli quello che si accorda meglio al tono del libro.
 - "atmosfera": quella che si accorda alla stagione e al tono del viaggio.
 - "titolo": il luogo del viaggio come lo dice un lettore italiano, al massimo tre parole (il paese per un viaggio in più città, la città per un viaggio in una città sola).
 
