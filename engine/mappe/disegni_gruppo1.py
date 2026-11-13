@@ -45,24 +45,21 @@ belem = ("M366,400 L366,318 " + merli_b + "L634,318 L634,400 Z "
          + garitta(440, 96) + garitta(538, 96) + garitta(350, 322) + garitta(612, 322)
          + garitta(420, 322) + garitta(558, 322))
 
-# Ha Long: faraglioni alti e ripidi; davanti una giunca con le vele a ventaglio color ruggine (il suo tratto).
+# Ha Long: solo i faraglioni, alti e ripidi, in due toni per la profondità. Niente giunca:
+# le vele ruggine spezzavano la scena (bocciate).
 halong_lontani = ("M60,400 C64,330 76,268 92,250 C100,242 108,252 114,246 C126,236 136,262 140,310 C144,356 146,384 148,400 Z "
                   "M770,400 C772,320 782,240 798,222 C806,214 814,226 820,218 C834,206 846,236 850,290 C854,346 856,380 858,400 Z "
                   "M880,400 C882,356 894,320 908,316 C920,312 930,336 934,366 L938,400 Z")
 halong_vicini = ("M170,400 C170,300 180,180 202,132 C210,116 220,124 226,112 C238,92 254,104 260,136 "
                  "C266,170 268,214 272,232 C282,208 296,196 310,200 C330,206 338,262 342,320 C344,360 346,386 348,400 Z "
                  "M650,400 C652,316 662,214 682,180 C690,166 700,176 706,166 C720,148 738,170 744,214 C750,264 754,340 756,400 Z")
-giunca_scafo = "M400,396 L594,396 L612,372 L384,372 Z M436,372 L436,232 L440,232 L440,372 Z M500,372 L500,196 L504,196 L504,372 Z M556,372 L556,248 L560,248 L560,372 Z"
-giunca_vele = ("M440,360 L440,236 C468,244 492,272 500,300 C488,320 470,344 440,360 Z "
-               "M504,360 L504,200 C538,212 566,250 574,290 C560,318 536,344 504,360 Z "
-               "M560,360 L560,252 C584,260 602,284 608,308 C598,326 582,346 560,360 Z")
 
 # Assisi: la basilica di San Francesco con il suo campanile, sul muraglione ad archi del Sacro Convento;
 # dietro, il colle che sale verso la Rocca. Gli archi sono un secondo tono, come la neve sul Fuji.
 assisi_colle = "M0,400 C200,396 360,380 460,350 C560,320 660,280 760,250 C840,226 920,214 1000,214 L1000,400 Z"
 assisi = ("M180,400 L180,286 L420,286 L420,256 L436,244 L436,286 L560,286 L560,250 L620,214 L680,250 L680,286 "
           "L720,286 L720,400 Z "
-          "M436,244 L436,156 L442,148 L442,138 L456,124 L470,138 L470,148 L476,156 L476,244 Z")
+          "M436,290 L436,156 L442,148 L442,138 L456,124 L470,138 L470,148 L476,156 L476,290 Z")
 archi = " ".join(f"M{x},400 L{x},346 C{x},328 {x + 30},328 {x + 30},346 L{x + 30},400 Z" for x in range(196, 700, 44))
 
 CANDIDATI = {
@@ -82,10 +79,9 @@ CANDIDATI = {
             "sagome": [{"d": belem, "colore": "#1c1a22"}],
             "astro": {"x": 0.70, "y": 0.43, "r": 15}, "uccelli": [[0.22, 0.40, 2.2], [0.27, 0.37, 1.7]]},
   "halong": {"nome": "Baia di Ha Long", "luoghi": ["Vietnam", "Ha Long", "Baia di Halong", "Hanoi"],
-             "tratti": "i faraglioni alti e tondeggianti che escono dall'acqua, una giunca con le vele a ventaglio",
+             "tratti": "i faraglioni alti, ripidi e irregolari che escono dall'acqua, a gruppi, due toni per la profondità",
              "atmosfera": "alba",
-             "sagome": [{"d": halong_lontani, "colore": "#3a3456"}, {"d": halong_vicini, "colore": "#211c33"},
-                        {"d": giunca_scafo, "colore": "#17141f"}, {"d": giunca_vele, "colore": "#b4522f"}],
+             "sagome": [{"d": halong_lontani, "colore": "#3a3456"}, {"d": halong_vicini, "colore": "#211c33"}],
              "astro": {"x": 0.50, "y": 0.38, "r": 16}, "uccelli": [[0.72, 0.30, 2.0], [0.77, 0.28, 1.6]]},
   "assisi": {"nome": "Assisi", "luoghi": ["Assisi", "Umbria", "Spoleto", "Perugia"],
              "tratti": "il colle lungo, la basilica con gli archi e il campanile, la città sul crinale, la Rocca in cima",
