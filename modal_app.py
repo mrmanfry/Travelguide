@@ -658,7 +658,55 @@ def web():
             raise HTTPException(status_code=403, detail="Accesso non consentito.")
 
     api = FastAPI(title="TravelGuide Engine")
+
+    # Le letture di un lavoro (stato, libro.pdf, libro.json, i .md, lo stato
+    # della stampa) contengono il libro pagato e i dati del viaggio. Le apre
+    # soltanto: il segreto della porta nell'header (il server del sito), oppure
+    # un link firmato e a scadenza che il server del sito chiede a
+    # POST /jobs/{id}/link e passa al browser. L'ID del lavoro da solo non basta:
+    # finisce nella cronologia, nei log e nei link inoltrati.
+    # GATE_LETTURE=1 nel secret chiude davvero; finché manca, le letture senza
+    # porta passano ma si scrivono nei log: così si diploya prima il motore,
+    # poi il sito passa al proxy, poi si chiude senza rompere niente.
+    import hashlib
+    import hmac as _hmac
+    import re as _re
+    import time as _time
+
+    from fastapi.responses import JSONResponse
+
+    _letture_chiuse = (os.environ.get("GATE_LETTURE") or "").strip() == "1"
+    _LETTURA_RE = _re.compile(r"^/jobs/([A-Za-z0-9_-]{1,80})(?:/[^/]*)?$")
+
+    def _firma_lettura(job_id: str, scade: int) -> str:
+        return _hmac.new(_gate.encode(), f"lettura|{job_id}|{scade}".encode(), hashlib.sha256).hexdigest()
+
+    def _lettura_consentita(request: Request, job_id: str) -> bool:
+        if not _gate:
+            return True
+        if _hmac.compare_digest((request.headers.get("X-Gate-Secret") or "").strip(), _gate):
+            return True
+        try:
+            scade = int(request.query_params.get("scade") or 0)
+        except ValueError:
+            return False
+        firma = request.query_params.get("firma") or ""
+        return scade >= _time.time() and _hmac.compare_digest(_firma_lettura(job_id, scade), firma)
+
+    @api.middleware("http")
+    async def _porta_letture(request: Request, call_next):
+        trovato = _LETTURA_RE.match(request.url.path) if request.method in ("GET", "HEAD") else None
+        if trovato and not _lettura_consentita(request, trovato.group(1)):
+            if _letture_chiuse:
+                return JSONResponse({"detail": "Accesso non consentito."}, status_code=403)
+            print(f"porta letture: {request.method} {request.url.path} senza porta né firma "
+                  f"(passa: GATE_LETTURE non attivo)", file=sys.stderr)
+        return await call_next(request)
+
     # Prototipo: il frontend (Lovable) sta su un altro dominio → CORS aperto.
+    # Aggiunto DOPO la porta delle letture, così è lo strato più esterno e
+    # anche un 403 della porta porta le intestazioni CORS (il browser mostra il
+    # 403, non un errore CORS incomprensibile).
     api.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -680,7 +728,32 @@ def web():
     def health():
         # `porta` dice se il lucchetto è attivo, senza rivelare il segreto:
         # basta un curl per accorgersi di averlo perso in un redeploy.
-        return {"ok": True, "porta": "attiva" if _gate else "DISATTIVATA"}
+        return {"ok": True, "porta": "attiva" if _gate else "DISATTIVATA",
+                "letture": "chiuse" if (_gate and _letture_chiuse) else "aperte"}
+
+    @api.post("/jobs/{job_id}/link")
+    def link_firmato(job_id: str, request: Request, payload: dict | None = None):
+        """Un link firmato e a scadenza per le letture di un lavoro (dietro la porta).
+
+        Lo chiede il server del sito e lo passa al browser del cliente, che così
+        scarica il PDF direttamente da qui senza mai vedere il segreto. Il link
+        vale per tutte le letture di quel lavoro e solo di quello, fino a
+        `scade` (secondi Unix). Durata in minuti nel corpo: 1–1440, default 30.
+        """
+        _controlla_porta(request)
+        _job_valido(job_id)
+        if not _gate:
+            raise HTTPException(status_code=503, detail="Porta non configurata: niente link firmati.")
+        try:
+            minuti = int((payload or {}).get("minuti") or 30)
+        except (TypeError, ValueError):
+            minuti = 30
+        scade = int(_time.time()) + 60 * max(1, min(1440, minuti))
+        query = f"scade={scade}&firma={_firma_lettura(job_id, scade)}"
+        base = str(request.base_url).rstrip("/").replace("http://", "https://", 1)
+        return {"scade": scade, "query": query,
+                "pdf": f"{base}/jobs/{job_id}/libro.pdf?{query}",
+                "libro_json": f"{base}/jobs/{job_id}/libro.json?{query}"}
 
     @api.post("/intervista")
     def intervista(payload: dict, request: Request):
