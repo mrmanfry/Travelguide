@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="it" data-type="product" data-radius="soft" data-buttons="pill" data-motion>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Strada Leggendo: guide di viaggio scritte su misura per chi parte</title>
+<meta name="description" content="Un libro scritto sulle vostre tappe e sui vostri nomi, da leggere online prima di partire e da ricevere stampato. Le prime pagine sono gratuite.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Strada Leggendo: guide di viaggio scritte su misura per chi parte">
+<meta property="og:description" content="Il libro del vostro viaggio, capitolo per capitolo, online e stampato.">
+<meta property="og:image" content="share.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.png" type="image/png">
+<meta name="theme-color" content="#f6ead8">
+<!-- <link rel="canonical" href="https://stradaleggendo.com/"> -->
+<meta name="site-kind" content="other">
+<meta name="page-type" content="product">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Besley:wght@400..700&family=Albert+Sans:wght@400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/system.css">
+<link rel="stylesheet" href="assets/ui/cards.css">
+<link rel="stylesheet" href="assets/motion/motion.css">
+<link rel="stylesheet" href="assets/layout/layout.css">
+<link rel="stylesheet" href="assets/icons/icon.css">
+<style>
+:root {
+  --p-bg: #f6ead8; --p-surface: #eddabf; --p-ink: #241f1a; --p-muted: #695c4e;
+  --p-accent: #b4522f; --p-accent-ink: #ffffff; --p-action: #b4522f; --p-action-ink: #ffffff;
+  --p-inv-bg: #241f1a; --p-inv-surface: #302b25; --p-inv-ink: #f6ead8; --p-inv-muted: #9f9689;
+  --p-inv-accent: #b4522f; --p-inv-accent-ink: #ffffff; --p-inv-action: #b4522f; --p-inv-action-ink: #ffffff;
+  --font-display: "Besley", Georgia, serif;
+  --font-text: "Albert Sans", system-ui, sans-serif;
+  --display-weight: 400;
+  --display-tracking: -0.02em;
+  --display-tracking-xl: -0.026em;
+}
+</style>
+<script>document.documentElement.classList.add('m-enter');setTimeout(()=>document.documentElement.classList.add('m-enter-done'),700)</script>
+<script>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
+<link rel="modulepreload" href="assets/moments/moments.js">
+<link rel="modulepreload" href="assets/moments/lib.js">
+<link rel="modulepreload" href="assets/moments/pinned-chapters/moment.js">
+<!-- page CSS: only inside a visual (the books on their tiles, the open book, the step windows) -->
+<style>
+  /* the books stand on the warm surface of their tile, whole */
+  #libri .tile__media { --tile-ratio: 5 / 4; }
+  #viaggi .tile__media { --tile-ratio: 16 / 9; }
+  #libri .tile__media > img, #viaggi .tile__media > img { width: 100%; height: 100%; object-fit: contain; padding: 5% 0 3%; }
+  #viaggi .tile ol { columns: 2; column-gap: var(--s-4); font-size: var(--t-body); line-height: 1.5; }
+  #viaggi .tile ol li { display: grid; grid-template-columns: 2.25em 1fr; break-inside: avoid; padding-bottom: var(--s-1); }
+  #viaggi .tile ol li > span { font-family: var(--font-display); color: var(--muted); }
+  /* the name across the .wrap, hand-set per width so "Strada Leggendo" runs line to line */
+  .closing .close__word { font-size: clamp(28px, 10.2vw, 148px); line-height: 1.3; white-space: nowrap; letter-spacing: -0.035em; overflow: visible; }
+  /* the tablet and the phone: the three books stay three-up; the trips take a row each, the book beside nothing */
+  @media (min-width: 640px) and (max-width: 1023px) { #libri .grid > .tile.span-4 { grid-column: auto / span 4; } #libri .tile__media { --tile-ratio: 3 / 4; } #viaggi .tile ol { columns: 1; } #domande .faq__item--more { display: none; } #domande .grid > .span-6 { grid-column: span 6; } #domande .grid > .start-7 { grid-column: 7 / span 6; } }
+  @media (max-width: 639px) { #viaggi .grid > .tile.span-4 { grid-column: 1 / -1; } #viaggi .tile__media { --tile-ratio: 2 / 1; } }
+  @media (min-width: 640px) and (max-width: 1023px) { #viaggi .grid > .tile.span-4 { grid-column: auto / span 4; } }
+  @media (max-width: 639px) { #libri .grid > .tile.span-4 { grid-column: auto / span 6; } #libri .grid > .tile:nth-child(3) { display: none; } #libri .tile__media { --tile-ratio: 3 / 4; } }
+  /* the steps at rest (tablet, phone): each window as tall as it is, never cut; the section two screens there */
+  [data-moment="pinned-chapters"]:not(.is-live) .mo-pc__visual--lit { aspect-ratio: auto !important; }
+  @media (max-width: 639px), (min-width: 640px) and (max-width: 1023px) and (max-height: 1100px) { #come:not(.is-live) { min-height: 200svh; } }
+  @media (min-width: 640px) and (max-width: 1023px) and (min-height: 1101px) { #come .win__title { display: none; } }
+  @media (max-width: 639px) { #come .win__title, #come .win__field:last-child, #come .win__msg:last-child, #come .win__row:nth-of-type(3) { display: none; } }
+
+  /* the open book: two cream pages on the dark band, the chapter as live text */
+  .spread-fig { margin: 0; }
+  .spread { display: grid; grid-template-columns: 1fr 1fr; border-radius: var(--r-md); overflow: hidden;
+    background: #fbf3e6; color: #2b241d; box-shadow: 0 30px 60px -30px rgb(0 0 0 / .6); }
+  .spread__page { padding: var(--s-6) var(--s-8); display: flex; flex-direction: column; gap: var(--s-4); background-color: #fbf3e6; }
+  .spread__page + .spread__page { border-left: 1px solid #e6d6bd; background: linear-gradient(90deg, #efe2cc 0, #fbf3e6 28px); }
+  .spread__page:first-child { background: linear-gradient(270deg, #efe2cc 0, #fbf3e6 28px); }
+  .spread__art { margin: 0 0 var(--s-2); border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 5 / 2; }
+  .spread__art > img { width: 100%; height: 100%; object-fit: cover; }
+  .spread .t-label { color: #8a5a3c; }
+  .spread__title { font: var(--display-weight) 32px/1.15 var(--font-display); letter-spacing: -0.015em; color: #241f1a; }
+  .spread__sub { font: 400 20px/1.4 var(--font-display); color: #6b5a48; }
+  .spread__head { font: 500 var(--t-lead)/1.35 var(--font-text); color: #241f1a; margin-top: var(--s-4); }
+  .spread__page > p:not([class]) { font: 400 17px/1.7 var(--font-display); color: #2b241d; max-width: 52ch; }
+  .spread__folio { margin-top: auto; font-size: var(--t-label); color: #5e4f40; }
+  @media (min-width: 640px) and (max-width: 1023px) { .spread__folio { display: none; } .spread__page { padding: var(--s-6); } }
+  @media (min-width: 640px) and (max-width: 1023px) and (max-height: 1100px) { .spread__page + .spread__page p:last-of-type { display: none; } }
+  @media (max-width: 639px) { .spread { grid-template-columns: 1fr; } .spread__page + .spread__page { border-left: 0; border-top: 1px solid #e6d6bd; } .spread__folio { display: none; } }
+  @media (max-width: 639px) { .spread__page { padding: var(--s-5); } .spread__art { aspect-ratio: 4 / 3; } }
+
+  /* the three windows of "Come nasce": the brief, the talk with the author, the book arriving */
+  .win { width: min(100%, 460px); background: var(--p-bg); color: var(--p-ink); border: 1px solid color-mix(in oklab, var(--p-ink) 14%, transparent);
+    border-radius: var(--r-lg); box-shadow: 0 24px 48px -28px rgb(60 35 15 / .45); padding: var(--s-5); display: grid; gap: var(--s-4); font-size: 15px; }
+  .win__title { font: 500 15px/1.3 var(--font-text); color: var(--p-muted); }
+  .win__field { display: grid; gap: 6px; }
+  .win__label { font-size: 13px; font-weight: 500; color: var(--p-muted); }
+  .win__value { display: flex; flex-wrap: wrap; gap: 6px; }
+  .win__chip { padding: 4px 12px; border-radius: 999px; background: var(--p-surface); font-size: 14px; }
+  .win__text { padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid color-mix(in oklab, var(--p-ink) 14%, transparent); line-height: 1.5; }
+  .win__msg { max-width: 86%; padding: 10px 14px; border-radius: 16px; line-height: 1.45; }
+  .win__msg--a { background: var(--p-surface); border-bottom-left-radius: 4px; }
+  .win__msg--me { justify-self: end; background: var(--p-accent); color: #fff; border-bottom-right-radius: 4px; }
+  .win__row { display: flex; justify-content: space-between; gap: var(--s-4); padding-bottom: var(--s-3); border-bottom: 1px solid color-mix(in oklab, var(--p-ink) 12%, transparent); }
+  .win__row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .win__state { color: #8a3b20; font-weight: 500; white-space: nowrap; }
+  .win__state--wait { color: var(--p-muted); }
+  .mo-pc__visual--lit { background: var(--p-surface) !important; }
+  .win--check { display: grid; gap: var(--s-4); }
+</style>
+</head>
+<body>
+<!-- type: product (site-kind other): libri di viaggio personalizzati, letti online e stampati
+     deal: hero product (the client's covers as cut-outs, a row of five books), nav nav-split, close close-word,
+       footer footer-dark, rhythm dark-band (#assaggio), buttons pill, mark: wordmark (the client's own name, no dealt mark)
+     palette: the client's own colours through start.mjs brand (avorio #f6ead8, inchiostro #241f1a, terracotta #b4522f):
+       the first dealt palette (white and signal red) clashed with the client's covers and with the brief, which asks for warmth
+     type: besley (Besley / Albert Sans): the first pairing (Mona Sans) clashed with the client's serif wordmark
+     moments: pinned-chapters (#come); picture-develops dealt again away: the page has no photograph, only the client's illustrated covers -->
+<header class="nav nav--split">
+  <div class="wrap nav__bar">
+    <a class="skip-link" href="#top">Vai al contenuto</a>
+    <nav class="nav__links" aria-label="Principale">
+      <div class="nav__item"><a class="nav__link" href="#libri">Libri</a></div>
+      <div class="nav__item"><a class="nav__link" href="#come">Come nasce</a></div>
+      <div class="nav__item"><a class="nav__link" href="#assaggio">Assaggio</a></div>
+      <div class="nav__item"><a class="nav__link" href="#domande">Domande</a></div>
+    </nav>
+    <a class="nav__logo" href="#top">Strada Leggendo</a>
+    <div class="nav__actions">
+      <a class="btn btn--primary" href="https://stradaleggendo.com/inizia">Inizia il tuo libro</a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero hero--product" data-enter aria-labelledby="hero-h">
+    <div class="wrap"><div class="hero-text hero__in">
+      <div class="hero__head">
+        <div>
+          <h1 id="hero-h">Una guida di viaggio scritta per voi</h1>
+          <p class="hero__lead">Un libro sulle vostre tappe, con i vostri nomi e le cose che amate, da un weekend di 4 giorni a un viaggio di 12. Lo leggete online e lo ricevete stampato. Le prime pagine sono gratuite.</p>
+        </div>
+        <div class="btn-row"><a class="btn btn--primary" href="https://stradaleggendo.com/inizia">Inizia il tuo libro<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#assaggio">Leggi un capitolo</a></div>
+      </div>
+      <div class="hero__stage">
+        <img class="is-cutout" src="img/libri-fila.webp" width="2560" height="1132" alt="Cinque guide Strada Leggendo in fila, con le copertine al tramonto: Portogallo, Vietnam, New York, Istanbul e Monaco di Baviera" fetchpriority="high" data-source="client" data-subject="the books">
+      </div>
+    </div></div>
+  </section>
+
+  <section class="section" id="libri" aria-labelledby="libri-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="libri-h">Guide di viaggio già scritte. <span class="muted">Ognuna per una sola strada.</span></h2>
+        <p>Luogo, capitoli, ritmo e consigli cambiano con chi parte. Queste sono tre delle guide già composte, nessuna uguale all’altra.</p>
+      </div>
+      <div class="grid">
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-assisi-sera.webp" width="680" height="910" alt="La guida dell’Umbria, con la basilica di Assisi in controluce sotto una luna piena" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>Il libro di Assisi</h3></div>
+          <p class="tile__facts">Umbria</p>
+        </article>
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-empire-state-notte.webp" width="680" height="910" alt="La guida di New York, con l’Empire State Building nella notte blu" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>Il libro di New York</h3></div>
+          <p class="tile__facts">Manhattan, Brooklyn, Harlem</p>
+        </article>
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-halong-alba.webp" width="680" height="910" alt="La guida del Vietnam, con i faraglioni della baia di Ha Long e un sole rosso all’alba" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>Il libro di Ha Long</h3></div>
+          <p class="tile__facts">Vietnam</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="come" style="--h: 2" data-moment="pinned-chapters" aria-labelledby="come-h">
+    <div class="wrap mo-pc__grid">
+      <div class="mo-pc__text">
+        <h2 id="come-h">Come nasce il vostro libro</h2>
+        <ol class="mo-pc__steps">
+          <li class="mo-pc__step">
+            <h3>Raccontate il viaggio</h3>
+            <p>Tappe, mezzo, ritmo, occasione e le cose che non volete perdere. Avete già un programma? Caricatelo in PDF, Excel, CSV o in foto.</p>
+            <figure class="mo-pc__visual mo-pc__visual--lit" role="img" aria-label="La scheda del viaggio: Lisbona, Sintra e Porto, in treno, due persone">
+              <div class="win">
+                <p class="win__title">Il vostro viaggio</p>
+                <div class="win__field"><span class="win__label">Dove andate</span><span class="win__value"><span class="win__chip">Lisbona</span><span class="win__chip">Sintra</span><span class="win__chip">Porto</span></span></div>
+                <div class="win__field"><span class="win__label">Mezzo principale</span><span class="win__value"><span class="win__chip">Treno</span></span></div>
+                <div class="win__field"><span class="win__label">Quanti siete</span><span class="win__value"><span class="win__chip">2 persone</span></span></div>
+                <div class="win__field"><span class="win__label">Raccontatelo a parole vostre</span><span class="win__text">Niente code, una cena lunga a Porto, Sintra presto la mattina.</span></div>
+              </div>
+            </figure>
+          </li>
+          <li class="mo-pc__step">
+            <h3>Parlate con l’autore della guida</h3>
+            <p>Una breve conversazione per capire chi siete e cosa cercate davvero, prima che si scriva una riga.</p>
+            <figure class="mo-pc__visual mo-pc__visual--lit" role="img" aria-label="La conversazione con l’autore su come arrivare a Sintra">
+              <div class="win">
+                <p class="win__title">Il vostro autore</p>
+                <p class="win__msg win__msg--a">A Sintra preferite arrivare col primo treno o dormire una notte lì?</p>
+                <p class="win__msg win__msg--me">Col primo treno. E torniamo a Lisbona per cena.</p>
+                <p class="win__msg win__msg--a">Allora il capitolo comincia alla stazione del Rossio, prima delle otto.</p>
+              </div>
+            </figure>
+          </li>
+          <li class="mo-pc__step">
+            <h3>Ricevete la guida, capitolo per capitolo</h3>
+            <p>Da leggere prima e durante il viaggio: online e poi stampata.</p>
+            <figure class="mo-pc__visual mo-pc__visual--lit" role="img" aria-label="I capitoli del libro, pronti da leggere online, e la copia stampata">
+              <div class="win">
+                <p class="win__title">Portogallo, 7 giorni</p>
+                <div class="win__row"><span>I · Prima di partire</span><span class="win__state">Da leggere</span></div>
+                <div class="win__row"><span>II · Il primo giorno</span><span class="win__state">Da leggere</span></div>
+                <div class="win__row"><span>III · Sintra al mattino</span><span class="win__state">Da leggere</span></div>
+                <div class="win__row"><span>Copia stampata</span><span class="win__state win__state--wait">In stampa</span></div>
+              </div>
+            </figure>
+          </li>
+        </ol>
+      </div>
+      <div class="mo-pc__visuals frame"></div>
+    </div>
+  </section>
+
+  <section class="section ground-inverse" id="assaggio" style="--hm: 2" aria-labelledby="assaggio-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="assaggio-h">Il capitolo III della guida di Elena. <span class="muted">New York, 29 dicembre – 4 gennaio.</span></h2>
+      </div>
+      <figure class="spread-fig"><article class="spread" aria-label="Due pagine del capitolo III">
+        <div class="spread__page">
+          <figure class="spread__art"><img src="img/capitolo-new-york.webp" width="720" height="420" alt="La Statua della Libertà in controluce sotto una luna piena, l’illustrazione che apre il capitolo" loading="lazy" data-source="client" data-subject="the book's illustration"></figure>
+          <p class="t-label">Capitolo III</p>
+          <p class="spread__title">New York (Manhattan, Brooklyn, Harlem)</p>
+          <p class="spread__sub">La città che si capisce con i piedi</p>
+          <p class="spread__folio">Strada Leggendo · una guida di viaggio per Elena</p>
+        </div>
+        <div class="spread__page">
+          <p class="spread__head">I. Times Square, da sola, la prima notte</p>
+          <p>Times Square va vista la prima sera e poi lasciata perdere. Non è un insulto: è il modo giusto di usarla. Il 29 dicembre arrivi prima del gruppo. Per una notte nessuno ti spiega niente e nessuno ti aspetta, e questa è la condizione migliore per l’incrocio più fotografato del pianeta.</p>
+          <p>Il Moxy, dove dormirai le prime notti, sta a pochi isolati a sud. Esci dopo cena, quando il fuso orario ti tiene sveglia comunque, e cammina verso nord lungo la Seventh Avenue.</p>
+        </div>
+      </article></figure>
+    </div>
+  </section>
+
+  <section class="section" id="viaggi" style="--hm: 2" aria-labelledby="viaggi-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="viaggi-h">Una guida lunga quanto il vostro viaggio</h2>
+        <p>Un weekend in auto, una settimana in treno, un viaggio di nozze: il numero dei capitoli, il ritmo e i consigli seguono il viaggio che avete in mente.</p>
+      </div>
+      <div class="grid">
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-assisi-alba.webp" width="680" height="910" alt="La guida dell’Umbria all’alba, con un sole rosso sopra Assisi" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>4 giorni in Umbria, in auto</h3></div>
+          <ol aria-label="Capitoli dell’Umbria"><li><span>I</span>Prima di partire</li><li><span>II</span>Assisi prima delle otto</li><li><span>III</span>Spello e i vicoli fioriti</li><li><span>IV</span>Una tavola a Montefalco</li><li><span>V</span>Il ritorno</li></ol>
+        </article>
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-belem-sera.webp" width="680" height="910" alt="La guida del Portogallo, con la torre di Belém e la luna sul fiume" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>7 giorni in Portogallo, in treno</h3></div>
+          <ol aria-label="Capitoli del Portogallo"><li><span>I</span>La valigia</li><li><span>II</span>Lisbona dall’alto</li><li><span>III</span>Belém, il lato del fiume</li><li><span>IV</span>Sintra nella nebbia</li><li><span>V</span>Il treno per Porto</li><li><span>VI</span>Cantine sul Douro</li><li><span>VII</span>Ultima sera a Ribeira</li></ol>
+        </article>
+        <article class="tile span-4">
+          <div class="tile__media"><img src="img/libro-fuji-alba.webp" width="680" height="910" alt="La guida del Giappone, con il monte Fuji innevato e il sole rosso all’alba" loading="lazy" data-source="client" data-subject="the book"></div>
+          <div class="tile__head"><h3>12 giorni in Giappone, in viaggio di nozze</h3></div>
+          <ol aria-label="Capitoli del Giappone"><li><span>I</span>Prima del volo</li><li><span>II</span>Tokyo, i primi giorni</li><li><span>III</span>Il Fuji all’alba</li><li><span>IV</span>Hakone e i ryokan</li><li><span>V</span>Kyoto lenta</li><li><span>VI</span>Nara a piedi</li><li><span>VII</span>Osaka di sera</li><li><span>VIII</span>Ritorno a casa</li></ol>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="domande" style="--hm: 2" aria-labelledby="domande-h">
+    <div class="wrap">
+      <div class="section-head">
+          <h2 id="domande-h">Ogni luogo verificato prima di finire nella guida</h2>
+          <p>Prima che un indirizzo entri in un capitolo, controlliamo quattro cose. Poi rispondiamo alle domande che ci fate più spesso.</p>
+        </div>
+      <div class="grid grid--top">
+        <div class="card win--check span-6" role="img" aria-label="La scheda di verifica di una tappa: aperture, tempi, prenotazioni e fonti, tutte controllate">
+          <p class="win__title">Verifica della tappa</p>
+          <div class="win__row"><span>Aperture e stagionalità</span><span class="win__state">Controllato</span></div>
+          <div class="win__row"><span>Tempi di viaggio e distanze</span><span class="win__state">Controllato</span></div>
+          <div class="win__row"><span>Prenotazioni e accessibilità</span><span class="win__state">Controllato</span></div>
+          <div class="win__row"><span>Fonti e dettagli da confermare</span><span class="win__state">Controllato</span></div>
+        </div>
+      <div class="faq span-6 start-7">
+        <div class="faq__item"><h3>Cosa serve per cominciare la guida?</h3><p>Il vostro programma, se l’avete: PDF, Excel, CSV, testo o una foto, fino a 3 file da 20 MB ciascuno. Altrimenti bastano tre righe su dove andate e quando.</p></div>
+        <div class="faq__item"><h3>Quanto costa la guida?</h3><p>Le prime pagine sono gratuite. Le leggete prima di decidere se continuare.</p></div>
+        <div class="faq__item faq__item--more"><h3>Si legge anche durante il viaggio?</h3><p>Sì. La guida si legge online, prima e durante il viaggio, e arriva anche stampata.</p></div>
+        <div class="faq__item"><h3>I nomi entrano davvero nella guida?</h3><p>Sì. I nomi di chi viaggia entrano nel racconto: la guida parla di voi, non di due generici viaggiatori.</p></div>
+      </div>
+    </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer closing footer--dark ground-inverse g2m" id="contact" aria-labelledby="close-h">
+  <div class="wrap">
+    <div class="closing__cta close--word">
+      <div class="section-head--split">
+        <div><h2 id="close-h">La prossima guida è la vostra</h2><p class="t-lead">Ogni dettaglio che aggiungete diventa una pagina scritta per voi.</p></div>
+        <a class="btn btn--primary" href="https://stradaleggendo.com/inizia">Inizia il tuo libro<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+      </div>
+      <p class="close__word" aria-hidden="true">Strada Leggendo</p>
+    </div>
+    <div class="closing__links">
+      <div class="grid">
+        <div class="span-4 stack-4">
+          <a class="nav__logo" href="#top">Strada Leggendo</a>
+          <p class="footer__lede">Guide di viaggio scritte su misura.</p>
+        </div>
+        <div class="span-2 start-5 footer__col"><h3>Libri</h3><ul><li><a href="#libri">Guide già scritte</a></li><li><a href="#viaggi">Per durata</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Come nasce</h3><ul><li><a href="#come">I tre passi</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Assaggio</h3><ul><li><a href="#assaggio">Il capitolo III</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Domande</h3><ul><li><a href="#domande">Cosa verifichiamo</a></li></ul></div>
+      </div>
+      <div class="footer__legal">
+        <span>&copy; 2026 Strada Leggendo</span>
+        <div class="socials"></div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<nav class="actionbar" aria-label="Azioni rapide">
+  <a class="btn btn--primary" href="https://stradaleggendo.com/inizia">Inizia il tuo libro</a>
+</nav>
+
+<script type="module" src="assets/system.js"></script>
+<script type="module" src="assets/motion/motion.js"></script>
+<script type="module" src="assets/layout/layout.js"></script>
+</body>
+</html>
