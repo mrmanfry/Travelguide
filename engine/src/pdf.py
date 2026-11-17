@@ -87,6 +87,8 @@ def _classe_box(etichetta: str) -> str:
     e = etichetta.upper()
     if "IMMOBIL" in e:
         return "box box--immobili"
+    if re.search(r"\bDA FARE\b", e):
+        return "box box--dafare"
     if "ATTENZIONE" in e:
         return "box box--attenzione"
     return "box"
@@ -99,6 +101,28 @@ def _dividi_etichetta(testo: str) -> tuple[str, str]:
             a, b = testo.split(sep, 1)
             return a.strip(), b.strip()
     return testo.strip(), ""
+
+
+def _link_mappa(nome: str, dove: str) -> str:
+    """Il link che apre il posto su Google Maps: una ricerca, non un'API.
+
+    Nel PDF il nome è cliccabile e porta il lettore alla scheda del posto, con
+    le recensioni e gli orari di oggi: il libro consiglia, Google aggiorna.
+    """
+    from urllib.parse import quote_plus
+
+    return "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{nome}, {dove}" if dove else nome)
+
+
+def _arreda_dafare(resto: str, dove: str) -> str:
+    """Nel box DA FARE: i gruppi diventano etichette, i nomi diventano link."""
+    resto = re.sub(r"<p>\s*<em>([^<]{2,40})</em>\s*</p>", r'<p class="gruppo">\1</p>', resto)
+
+    def nome(m: re.Match) -> str:
+        testo = html.unescape(_TAG_RE.sub("", m.group(1))).strip()
+        return f'<li><a href="{html.escape(_link_mappa(testo, dove))}"><strong>{m.group(1)}</strong></a>'
+
+    return re.sub(r"<li>\s*(?:<p>\s*)?<strong>(.+?)</strong>", nome, resto)
 
 
 def _trasforma_box(frammento: str) -> str:
@@ -126,7 +150,10 @@ def _trasforma_box(frammento: str) -> str:
         # elementi non bastava — l'etichetta di ATTENZIONE è inline-block, per
         # poter avere il fondo pieno, e su un elemento inline la regola non si
         # applica affatto: infatti era rimasta sola dentro un box vuoto.
-        pezzi = [f'<aside class="{_classe_box(etichetta)}">', '<div class="cappello">']
+        classe = _classe_box(etichetta)
+        if classe == "box box--dafare":
+            resto = _arreda_dafare(resto, titolo)
+        pezzi = [f'<aside class="{classe}">', '<div class="cappello">']
         pezzi.append(f'<p class="etichetta">{html.escape(etichetta)}</p>')
         if titolo:
             pezzi.append(f'<p class="titolo">{html.escape(titolo)}</p>')
@@ -298,18 +325,34 @@ def _stacca_titolo_box(testo: str) -> str:
     come continuazione dello stesso capoverso: l'elenco non diventa un elenco e
     gli asterischi finiscono stampati nel libro. Una riga vuota di citazione
     ('>') rimette le cose a posto senza toccare quello che scrive il modello.
+
+    Due casi in più, nati col box DA FARE:
+    - un elenco subito sotto una riga di testo (il gruppo «*Da fare*») non è un
+      elenco per markdown: ci vuole la riga vuota di citazione in mezzo;
+    - due box uno dopo l'altro (DA FARE e GLI IMMOBILI), separati solo da una
+      riga vuota, markdown li fonde in uno: un commento HTML fra i due li tiene
+      distinti.
     """
     righe = testo.split("\n")
     fuori: list[str] = []
+    elenco = re.compile(r"^\s*([-*+]|\d+\.)\s")
     for i, riga in enumerate(righe):
+        if (riga.startswith(">") and riga.lstrip(">").strip().startswith("**")
+                and fuori and not fuori[-1].strip()
+                and any(r.strip() for r in fuori)
+                and next((r for r in reversed(fuori) if r.strip()), "").startswith(">")):
+            fuori.append("<!-- box -->")
+            fuori.append("")
         fuori.append(riga)
         if not riga.startswith(">"):
             continue
         dentro = riga.lstrip(">").strip()
-        if not (dentro.startswith("**") and dentro.endswith("**")):
-            continue
         prossima = righe[i + 1].lstrip(">").strip() if i + 1 < len(righe) else ""
-        if prossima:
+        if not prossima or not righe[i + 1].startswith(">"):
+            continue
+        if dentro.startswith("**") and dentro.endswith("**"):
+            fuori.append(">")
+        elif dentro and not elenco.match(dentro) and elenco.match(prossima):
             fuori.append(">")
     return "\n".join(fuori)
 

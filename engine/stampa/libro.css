@@ -419,6 +419,30 @@ h2.sezione .romano::after {
 .box--immobili .etichetta { color: var(--inchiostro); letter-spacing: 0.22em; }
 .box--immobili .titolo { font-size: 10pt; color: var(--inchiostro-2); }
 
+/* DA FARE — il riepilogo che si legge la mattina prima di uscire. Stessa
+   cornice di GLI IMMOBILI, di cui è il fratello: uno dice cosa fare, l'altro
+   cosa non si può spostare. I gruppi sono etichette piccole, le voci righe
+   strette; i nomi sono link alla mappa (nel PDF), in grassetto come nel testo. */
+.box--dafare {
+  break-inside: avoid;
+  background: transparent;
+  border: 0.5pt solid var(--filetto);
+  border-left: 0.5pt solid var(--filetto);
+  padding: 5mm;
+  margin: 8mm 0 0;
+}
+.box--dafare .etichetta { color: var(--terracotta); letter-spacing: 0.22em; }
+.box--dafare .titolo { font-size: 10pt; color: var(--inchiostro-2); }
+.box--dafare .gruppo {
+  font-family: "Archivo libro", sans-serif; font-size: 6.8pt; font-weight: 500;
+  letter-spacing: 0.18em; text-transform: uppercase; color: var(--grigio);
+  margin: 3.5mm 0 1mm; text-indent: 0; break-after: avoid;
+}
+.box--dafare ul { margin: 0; padding-left: 4mm; }
+.box--dafare li { margin: 0 0 1.2mm; break-inside: avoid; }
+.box--dafare li a { color: var(--inchiostro); }
+.box--dafare li a strong { border-bottom: 0.4pt solid var(--terracotta); }
+
 /* --------------------------------------------------------------- colophon */
 
 .colophon {

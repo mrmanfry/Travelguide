@@ -164,6 +164,7 @@ def costruisci_costi(brief: Brief, assignment: ChapterAssignment) -> dict:
     fonti = [
         ("generazione", f"{stem}.usage.json"),
         ("meta_salvage", f"{stem}.meta.usage.json"),
+        ("dafare_salvage", f"{stem}.dafare.usage.json"),
         ("critico_1", f"{stem}.critic.json"),
         ("fixer", f"{stem}.fix.usage.json"),
         ("critico_2", f"{stem}.critic2.json"),

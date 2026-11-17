@@ -565,6 +565,93 @@ def prova_copertina(luogo: str, nomi: str = "Ludovica,Filippo") -> str:
                       ensure_ascii=False, indent=1)
 
 
+@app.function(
+    image=engine_image,
+    volumes={"/data": output_volume},
+    secrets=[anthropic_secret],
+    timeout=60 * 60,
+    cpu=1.0,
+    memory=2048,
+)
+def prova_capitolo(job_id: str, numero: int, etichetta: str = "prova") -> str:
+    """Riscrive UN capitolo di un libro finito, su una copia, con le regole di oggi.
+
+    Per confrontare il prima e il dopo quando cambiano le regole di scrittura,
+    sul libro di un cliente vero ma senza toccarlo: si copia il lavoro in
+    output/<job>_<etichetta>, si toglie solo quel capitolo e lo si fa riscrivere
+    dalla pipeline normale (scrittura, critico, correttore), con i riassunti dei
+    capitoli prima. Accanto finiscono prima.pdf e dopo.pdf, con quel solo
+    capitolo, e confronto.json con i numeri. Torna il riepilogo come stringa.
+    """
+    _prepara_ambiente()
+    import json
+    import os
+    import re
+    import shutil
+    from pathlib import Path
+
+    chiave = os.environ.get("GUIDE_ENGINE_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if chiave:
+        os.environ["GUIDE_ENGINE_KEY"] = chiave
+    from schema.brief import Brief
+    from src.guide_runner import carica_stato, costruisci_libro, salva_stato
+    from src.outline import carica_outline
+    from src.pdf import scrivi_pdf
+    from src.run_chapter import esegui_capitolo
+
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", etichetta or ""):
+        raise ValueError("etichetta non valida")
+    output_volume.reload()
+    sorgente = Path(OUTPUT_ROOT) / job_id
+    copia = Path(OUTPUT_ROOT) / f"{job_id}_{etichetta}"
+    if copia.exists():
+        shutil.rmtree(copia)
+    shutil.copytree(sorgente, copia, ignore=shutil.ignore_patterns("libro*.pdf", "stampa", "copertina_giri"))
+    for f in copia.glob(f"cap_{numero:02d}*"):
+        f.unlink()
+
+    def brief_di(cartella: Path) -> Brief:
+        b = json.loads((cartella / "brief.json").read_text(encoding="utf-8"))
+        b["brief_id"] = cartella.name
+        return Brief.model_validate(b)
+
+    def solo_capitolo(b: Brief, destinazione: Path) -> dict:
+        assegnati = carica_outline(b)
+        libro = costruisci_libro(b, assegnati, carica_stato(b, assegnati))
+        libro["capitoli"] = [c for c in libro["capitoli"] if c["numero"] == numero]
+        scrivi_pdf(b, libro, destinazione)
+        return libro["capitoli"][0] if libro["capitoli"] else {}
+
+    prima = solo_capitolo(brief_di(sorgente), copia / "prima.pdf")
+
+    brief = brief_di(copia)
+    assegnati = carica_outline(brief)
+    stato = carica_stato(brief, assegnati)
+    a = next(x for x in assegnati if x.numero == numero)
+    a.riassunti_precedenti = [stato["capitoli"].get(str(x.numero), {}).get("riassunto") or ""
+                              for x in assegnati if x.numero < numero]
+    res = esegui_capitolo(brief, a)
+    stato["capitoli"].setdefault(str(numero), {}).update({
+        "stato": "approvato" if res.get("consegnabile") else "fallito",
+        "path": res["cap_path"], "riassunto": res["riassunto"],
+        "costo": res.get("costo_usd"), "verdetto": res.get("verdetto")})
+    salva_stato(brief, stato)
+    output_volume.commit()
+    dopo = solo_capitolo(brief, copia / "dopo.pdf")
+
+    def numeri(cap: dict) -> dict:
+        md = cap.get("corpo_md") or ""
+        return {"parole": len(md.split()), "nomi_in_grassetto": len(set(re.findall(r"\*\*([^*\n]{2,60})\*\*", md))),
+                "sezioni": cap.get("sezioni"), "box": re.findall(r"^> \*\*([^*]+)\*\*", md, re.M)}
+
+    confronto = {"capitolo": numero, "cartella": f"output/{copia.name}", "costo_usd": res.get("costo_usd"),
+                 "verdetto": res.get("verdetto"), "problemi": res.get("problemi"),
+                 "prima": numeri(prima), "dopo": numeri(dopo)}
+    (copia / "confronto.json").write_text(json.dumps(confronto, ensure_ascii=False, indent=1), encoding="utf-8")
+    output_volume.commit()
+    return json.dumps(confronto, ensure_ascii=False, indent=1)
+
+
 @app.function(image=engine_image, secrets=[lulu_secret], timeout=120)
 def collega_lulu(url_motore: str = "https://filippomanfroni--travelguide-web.modal.run") -> str:
     """Prova le chiavi Lulu del secret e iscrive il webhook degli ordini.

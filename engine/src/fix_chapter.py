@@ -75,14 +75,14 @@ def build_fixer_user(
     else:
         regola_box = (
             f"VIETATO (tipo '{assignment.tipo}', non una tappa): non aggiungerlo, "
-            "né la dicitura «GLI IMMOBILI»"
+            "né le diciture «GLI IMMOBILI» o «DA FARE»"
         )
     testo = (
         "VINCOLI STRUTTURALI DEL CAPITOLO (le patch devono rispettarli):\n"
         f"- Tipo capitolo: {assignment.tipo}\n"
         f"- Banda parole ammessa: {lo}-{hi} (budget {budget}, ±15%) — le patch non "
         "devono portare il conteggio fuori da questa banda\n"
-        f"- Box «GLI IMMOBILI»: {regola_box}\n\n"
+        f"- Box «GLI IMMOBILI» e «DA FARE»: {regola_box}\n\n"
         "---\n\n"
         "CAPITOLO DI RIFERIMENTO (da cui copiare alla lettera i frammenti 'cerca', "
         "NON da riscrivere):\n\n"
@@ -214,6 +214,11 @@ def _problemi_candidato(
     if not c["lunghezza_ok"]:
         problemi.append(
             f"lunghezza fuori banda dopo le patch: {c['parole']} parole (ammesse {lo}-{hi})"
+        )
+    if not c["dafare_ok"]:
+        problemi.append(
+            "box DA FARE assente in un capitolo di tappa" if assignment.tipo == "tappa"
+            else f"box DA FARE presente in un capitolo di tipo '{assignment.tipo}'"
         )
     if not c["immobili_ok"]:
         if assignment.tipo == "tappa":

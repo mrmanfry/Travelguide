@@ -280,6 +280,9 @@ def parse_meta(testo: str) -> dict | None:
 
 
 IMMOBILI_MARK = "GLI IMMOBILI"
+# Il riepilogo delle cose da fare, in fondo alle tappe prima di GLI IMMOBILI.
+# Maiuscolo e a parola intera: «da fare» in minuscolo nella prosa non conta.
+DAFARE_RE = re.compile(r"\bDA FARE\b")
 
 
 def tetto_ricerche(assignment: ChapterAssignment) -> int:
@@ -309,6 +312,12 @@ def immobili_conforme(assignment: ChapterAssignment, testo: str) -> bool:
     return presente if assignment.tipo == "tappa" else not presente
 
 
+def dafare_conforme(assignment: ChapterAssignment, testo: str) -> bool:
+    """Regola del box DA FARE: come GLI IMMOBILI, presente se e solo se tappa."""
+    presente = bool(DAFARE_RE.search(testo.split("<!--META", 1)[0]))
+    return presente if assignment.tipo == "tappa" else not presente
+
+
 def controlli_struttura(assignment: ChapterAssignment, testo: str) -> dict:
     """Controlli deterministici condivisi tra generatore e correttore.
 
@@ -328,10 +337,21 @@ def controlli_struttura(assignment: ChapterAssignment, testo: str) -> dict:
         "lunghezza_ok": lo <= parole <= hi,
         "meta_ok": meta is not None,
         "immobili_ok": immobili_conforme(assignment, testo),
+        "dafare_ok": dafare_conforme(assignment, testo),
+        # La forma dei blocchi strutturali, tutta insieme: è questa che decide.
+        "forma_ok": immobili_conforme(assignment, testo) and dafare_conforme(assignment, testo),
     }
 
 
 def rimuovi_box_immobili(testo: str) -> str | None:
+    return _rimuovi_box(testo, lambda r: IMMOBILI_MARK in r)
+
+
+def rimuovi_box_dafare(testo: str) -> str | None:
+    return _rimuovi_box(testo, lambda r: bool(DAFARE_RE.search(r)))
+
+
+def _rimuovi_box(testo: str, e_inizio) -> str | None:
     """Toglie il box GLI IMMOBILI dalla prosa. Ritorna None se non è sicuro farlo.
 
     Il box è un elemento chiuso e riconoscibile: una riga che porta la dicitura,
@@ -346,15 +366,18 @@ def rimuovi_box_immobili(testo: str) -> str | None:
     """
     corpo, sep, coda = testo.partition("<!--META")
     righe = corpo.split("\n")
-    inizio = next((i for i, r in enumerate(righe) if IMMOBILI_MARK in r), None)
+    inizio = next((i for i, r in enumerate(righe) if e_inizio(r)), None)
     if inizio is None:
         return None
 
     # Il box finisce al titolo successivo (di qualunque livello); se non ce n'è,
-    # arriva in fondo alla prosa.
+    # arriva in fondo alla prosa. Se il box è una citazione ('> ...'), finisce
+    # prima, alla prima riga che non lo è più: dopo DA FARE viene GLI IMMOBILI,
+    # e togliere l'uno non deve portarsi via l'altro.
     fine = len(righe)
+    citazione = righe[inizio].lstrip().startswith(">")
     for i in range(inizio + 1, len(righe)):
-        if re.match(r"^#{1,6} ", righe[i]):
+        if re.match(r"^#{1,6} ", righe[i]) or (citazione and not righe[i].lstrip().startswith(">")):
             fine = i
             break
 
@@ -379,6 +402,103 @@ def nota_revisione_immobili(assignment: ChapterAssignment) -> str:
         "non una tappa, quindi NON deve contenere il box «GLI IMMOBILI». Rimuovilo "
         "e, se servono vincoli di calendario, integrali nella prosa."
     )
+
+
+def nota_revisione_dafare(assignment: ChapterAssignment) -> str:
+    """Istruzione di rigenerazione quando il box DA FARE non è conforme."""
+    if assignment.tipo == "tappa":
+        return (
+            "BOX DA FARE MANCANTE: questo è un capitolo di tappa e DEVE contenere il "
+            "box «DA FARE» subito prima di GLI IMMOBILI, nella forma indicata "
+            "(Da vedere e da fare / Da mangiare e bere / Se avanza tempo). Inseriscilo."
+        )
+    return (
+        f"BOX DA FARE VIETATO: questo capitolo è di tipo '{assignment.tipo}', non una "
+        "tappa, quindi NON deve contenere il box «DA FARE». Rimuovilo."
+    )
+
+
+def ricava_dafare(brief: Brief, assignment: ChapterAssignment, testo: str) -> str | None:
+    """Ricava il box DA FARE dal capitolo di tappa che non l'ha, senza riscriverlo.
+
+    Come il META ricostruito: un capitolo buono non si riscrive su Opus perché
+    gli manca il riepilogo in fondo. Haiku ne ricava i primi due gruppi dai nomi
+    che il capitolo già consiglia — quelli verificati nel turno — e niente
+    «Se avanza tempo», che chiederebbe nomi nuovi da verificare. Il box va
+    subito prima di GLI IMMOBILI. Ritorna il testo con il box, o None.
+    """
+    corpo, sep, coda = testo.partition("<!--META")
+    istruzioni = (
+        "Ricevi il TESTO di un capitolo di una guida di viaggio. Produci SOLO il suo "
+        "riepilogo «DA FARE», ricavato dal testo, senza aggiungere nessun nome che "
+        "il testo non contenga e senza riscrivere niente. Forma esatta, in Markdown, "
+        "e nient'altro prima o dopo:\n\n"
+        "> **DA FARE — <nome della tappa>**\n>\n> *Da vedere e da fare*\n>\n"
+        "> - **<nome esatto come nel testo>**: perché fa per loro, e quando rende meglio.\n"
+        ">\n> *Da mangiare e bere*\n>\n> - **<nome esatto>**: cosa prendere, e per quale momento.\n\n"
+        "Una riga per voce, al voi, in italiano, nello stile del testo. Da 4 a 10 voci "
+        "in «Da vedere e da fare», da 2 a 8 in «Da mangiare e bere», solo cose che il testo "
+        "consiglia davvero. Niente prezzi né orari al minuto."
+    )
+    try:
+        client = make_client()
+        response = client.messages.create(
+            model=config.MODEL_META_SALVAGE,
+            max_tokens=config.MAX_TOKENS_META_SALVAGE,
+            messages=[{"role": "user", "content": istruzioni + "\n\n---\n\nTESTO DEL CAPITOLO:\n\n" + corpo}],
+        )
+    except Exception as exc:
+        print(f"Capitolo {assignment.numero:02d}: DA FARE non ricavato ({exc!r}).", file=sys.stderr)
+        return None
+    # La chiamata si paga anche se il blocco viene scartato: nei costi del capitolo.
+    chapter_paths(brief, assignment)[0].with_name(f"cap_{assignment.numero:02d}.dafare.usage.json").write_text(
+        json.dumps({"model": config.MODEL_META_SALVAGE, "truncated": response.stop_reason == "max_tokens",
+                    "retried": False, "chiamate": [response.usage.model_dump()]}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    blocco = "".join(b.text for b in response.content if b.type == "text").strip()
+    righe = [r for r in blocco.split("\n") if r.strip()]
+    if (response.stop_reason == "max_tokens" or not righe or not DAFARE_RE.search(righe[0])
+            or not all(r.lstrip().startswith(">") for r in righe)
+            or sum(1 for r in righe if re.match(r"^>\s*[-*] \*\*", r)) < 4):
+        print(f"Capitolo {assignment.numero:02d}: DA FARE ricavato non valido, scartato.", file=sys.stderr)
+        return None
+    linee = corpo.rstrip().split("\n")
+    # Prima di GLI IMMOBILI: davanti al suo titolo, o alla prima riga del suo box.
+    i = next((k for k, r in enumerate(linee) if IMMOBILI_MARK in r), None)
+    if i is None:
+        nuovo = corpo.rstrip() + "\n\n" + blocco + "\n"
+    else:
+        nuovo = "\n".join(linee[:i]).rstrip() + "\n\n" + blocco + "\n\n" + "\n".join(linee[i:]) + "\n"
+    print(f"Capitolo {assignment.numero:02d}: box DA FARE ricavato dal testo via {config.MODEL_META_SALVAGE}.",
+          file=sys.stderr)
+    return nuovo + ("\n" + sep + coda if sep else "")
+
+
+def ripara_forma(brief: Brief, assignment: ChapterAssignment, testo: str, c: dict) -> tuple[str, dict]:
+    """Riparazioni meccaniche dei blocchi strutturali, prima di ogni giudizio.
+
+    Fuori dalle tappe, GLI IMMOBILI e DA FARE si tolgono; in una tappa, un DA
+    FARE mancante si ricava dal testo. Costano zero o quasi, contro una
+    riscrittura del capitolo su Opus.
+    """
+    if assignment.tipo != "tappa":
+        for ok, togli, nome in (("immobili_ok", rimuovi_box_immobili, "GLI IMMOBILI"),
+                                ("dafare_ok", rimuovi_box_dafare, "DA FARE")):
+            if not c[ok]:
+                ripulito = togli(testo)
+                if ripulito is not None:
+                    dopo = controlli_struttura(assignment, ripulito)
+                    if dopo[ok]:
+                        testo, c = ripulito, dopo
+                        print(f"Capitolo {assignment.numero:02d}: box {nome} rimosso "
+                              f"(tipo '{assignment.tipo}', non ammesso).", file=sys.stderr)
+    elif not c["dafare_ok"] and c["immobili_ok"]:
+        ricavato = ricava_dafare(brief, assignment, testo)
+        if ricavato is not None:
+            dopo = controlli_struttura(assignment, ricavato)
+            if dopo["dafare_ok"]:
+                testo, c = ricavato, dopo
+    return testo, c
 
 
 def total_web_searches(usage_log: list[dict]) -> int:
@@ -682,14 +802,13 @@ def _recupera_bozza(
     if not titolo_ok:
         return rinuncia("senza titolo")
     c = controlli_struttura(assignment, testo)
-    if not c["immobili_ok"] and assignment.tipo != "tappa":
-        ripulito = rimuovi_box_immobili(testo)
-        if ripulito is not None:
-            testo, c = ripulito, controlli_struttura(assignment, ripulito)
+    testo, c = ripara_forma(brief, assignment, testo, c)
     if c["parole"] < lo:
         return rinuncia(f"troppo corta: {c['parole']} parole, minimo {lo}")
     if not c["immobili_ok"]:
         return rinuncia("box GLI IMMOBILI fuori regola")
+    if not c["dafare_ok"]:
+        return rinuncia("box DA FARE fuori regola")
     if not c["meta_ok"]:
         print(
             f"Capitolo {assignment.numero:02d}: bozza su disco ({c['parole']} parole) "
@@ -776,7 +895,7 @@ def generate_chapter(
         testo, usage_log = recuperato
         titolo_ok = True
         c = controlli_struttura(assignment, testo)
-        valido = c["lunghezza_ok"] and c["meta_ok"] and c["immobili_ok"]
+        valido = c["lunghezza_ok"] and c["meta_ok"] and c["forma_ok"]
     tentativi = range(1, MAX_GEN_ATTEMPTS + 1) if recuperato is None else range(0)
 
     for tentativo in tentativi:
@@ -806,17 +925,7 @@ def generate_chapter(
             # riscrivere. Spesso sistema anche la lunghezza (il box pesa), e
             # rigenerare un capitolo su Opus costa quanto tutto il resto della
             # pipeline messo insieme.
-            if not c["immobili_ok"] and assignment.tipo != "tappa":
-                ripulito = rimuovi_box_immobili(testo)
-                if ripulito is not None:
-                    dopo = controlli_struttura(assignment, ripulito)
-                    if dopo["immobili_ok"]:
-                        testo, c = ripulito, dopo
-                        print(
-                            f"Capitolo {assignment.numero:02d}: box GLI IMMOBILI "
-                            f"rimosso (tipo '{assignment.tipo}', non ammesso).",
-                            file=sys.stderr,
-                        )
+            testo, c = ripara_forma(brief, assignment, testo, c)
             parole = c["parole"]
             # Si accetta quando c'è il META, il box è giusto e il capitolo NON è
             # troppo corto. Troppo lungo si consegna: novanta parole oltre la
@@ -824,7 +933,7 @@ def generate_chapter(
             # — e il testo scritto in più è testo che il lettore riceve. Troppo
             # corto invece si riscrive: un capitolo smilzo è un difetto vero.
             corto = parole < lo
-            if not corto and c["meta_ok"] and c["immobili_ok"]:
+            if not corto and c["meta_ok"] and c["forma_ok"]:
                 valido = c["lunghezza_ok"]
                 break
             # Recupero del META, tentato ogni volta che manca — non più solo
@@ -843,7 +952,7 @@ def generate_chapter(
                             f"{config.MODEL_META_SALVAGE}.",
                             file=sys.stderr,
                         )
-                    if not corto and c["immobili_ok"] and c["meta_ok"]:
+                    if not corto and c["forma_ok"] and c["meta_ok"]:
                         valido = c["lunghezza_ok"]
                         break
             # La nota sulla lunghezza solo se serve davvero: troppo corto, o
@@ -875,6 +984,8 @@ def generate_chapter(
                 )
             if not c["immobili_ok"]:
                 note_parti.append(nota_revisione_immobili(assignment))
+            if not c["dafare_ok"]:
+                note_parti.append(nota_revisione_dafare(assignment))
 
         if tentativo < MAX_GEN_ATTEMPTS:
             extra_note = "\n\n" + "\n\n".join(note_parti)
@@ -898,6 +1009,11 @@ def generate_chapter(
                         + (", con la risposta troncata per esaurimento dello spazio" if troncato else "")
                         + ": il capitolo è salvato come grezzo ma non è valido "
                         "(controllo ricerche inerte, nessun asset estratto)."
+                    )
+                if not c["dafare_ok"]:
+                    warnings.append(
+                        f"Box DA FARE {'assente' if assignment.tipo == 'tappa' else 'presente'} "
+                        f"dopo {MAX_GEN_ATTEMPTS} tentativi in un capitolo di tipo '{assignment.tipo}'."
                     )
                 if not c["immobili_ok"]:
                     if assignment.tipo == "tappa":
