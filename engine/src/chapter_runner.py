@@ -261,9 +261,14 @@ def clean_chapter(grezzo: str) -> tuple[str, bool]:
 def chapter_word_count(testo: str) -> int:
     """Conta le parole del capitolo, dal titolo escluso il blocco META.
 
+    Escluso anche il box DA FARE: è un'aggiunta in coda al racconto, e il budget
+    parole è tutto della prosa. Contato dentro, il riepilogo toglieva al
+    capitolo proprio le storie che lo rendono nostro.
+
     Il testo in ingresso è già ripulito dal preambolo (inizia con '# ').
     """
-    body = testo.split("<!--META", 1)[0]
+    senza = rimuovi_box_dafare(testo, prudente=False) if DAFARE_RE.search(testo) else None
+    body = (senza if senza is not None else testo).split("<!--META", 1)[0]
     return len(body.split())
 
 
@@ -347,11 +352,11 @@ def rimuovi_box_immobili(testo: str) -> str | None:
     return _rimuovi_box(testo, lambda r: IMMOBILI_MARK in r)
 
 
-def rimuovi_box_dafare(testo: str) -> str | None:
-    return _rimuovi_box(testo, lambda r: bool(DAFARE_RE.search(r)))
+def rimuovi_box_dafare(testo: str, prudente: bool = True) -> str | None:
+    return _rimuovi_box(testo, lambda r: bool(DAFARE_RE.search(r)), prudente)
 
 
-def _rimuovi_box(testo: str, e_inizio) -> str | None:
+def _rimuovi_box(testo: str, e_inizio, prudente: bool = True) -> str | None:
     """Toglie il box GLI IMMOBILI dalla prosa. Ritorna None se non è sicuro farlo.
 
     Il box è un elemento chiuso e riconoscibile: una riga che porta la dicitura,
@@ -384,7 +389,7 @@ def _rimuovi_box(testo: str, e_inizio) -> str | None:
     rimaste = righe[:inizio] + righe[fine:]
     nuovo_corpo = "\n".join(rimaste).rstrip() + "\n"
     tolte = len(" ".join(righe[inizio:fine]).split())
-    if tolte > 0.25 * len(corpo.split()):
+    if prudente and tolte > 0.25 * len(corpo.split()):
         return None
     return nuovo_corpo + ("\n" + sep + coda if sep else "")
 

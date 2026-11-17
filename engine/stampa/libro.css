@@ -424,7 +424,9 @@ h2.sezione .romano::after {
    cosa non si può spostare. I gruppi sono etichette piccole, le voci righe
    strette; i nomi sono link alla mappa (nel PDF), in grassetto come nel testo. */
 .box--dafare {
-  break-inside: avoid;
+  /* Si spezza fra due pagine come un elenco qualunque: è spesso più lungo di
+     una pagina, e tenerlo intero lasciava mezza pagina bianca prima. Restano
+     intere le singole voci e l'etichetta del gruppo con la sua prima voce. */
   background: transparent;
   border: 0.5pt solid var(--filetto);
   border-left: 0.5pt solid var(--filetto);
