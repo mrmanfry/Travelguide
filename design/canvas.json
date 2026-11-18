@@ -1,0 +1,50 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Desktop" },
+    { "id": "page-2", "name": "Mobile" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "1 · Landing", "page": "page-1", "x": 0, "y": 0, "w": 1440, "h": 2200 },
+    { "file": "Brief.dc.html", "title": "2 · Il brief", "page": "page-1", "x": 1560, "y": 0, "w": 1440, "h": 1800 },
+    { "file": "Intervista.dc.html", "title": "3 · L'intervista", "page": "page-1", "x": 3120, "y": 0, "w": 900, "h": 1250 },
+    { "file": "Avanzamento.dc.html", "title": "4 · Avanzamento", "page": "page-1", "x": 4140, "y": 0, "w": 1100, "h": 1100 },
+    { "file": "Assaggio.dc.html", "title": "5 · Assaggio e paywall", "page": "page-1", "x": 5360, "y": 0, "w": 1000, "h": 1800 },
+    { "file": "Libro.dc.html", "title": "6 · Il libro", "page": "page-1", "x": 6480, "y": 0, "w": 1440, "h": 1050 },
+    { "file": "DirezioneB.dc.html", "title": "Direzione B (scartata)", "page": "page-1", "x": 0, "y": 2360, "w": 560, "h": 420 },
+    { "file": "DirezioneC.dc.html", "title": "Direzione C (scartata)", "page": "page-1", "x": 680, "y": 2360, "w": 560, "h": 420 },
+
+    { "file": "MobileLanding.dc.html", "title": "1 · Landing", "page": "page-2", "x": 0, "y": 0, "w": 390, "h": 1750 },
+    { "file": "MobileBrief.dc.html", "title": "2 · Il brief, a passi", "page": "page-2", "x": 510, "y": 0, "w": 390, "h": 900 },
+    { "file": "MobileIntervista.dc.html", "title": "3 · L'intervista", "page": "page-2", "x": 1020, "y": 0, "w": 390, "h": 900 },
+    { "file": "MobileAvanzamento.dc.html", "title": "4 · Avanzamento", "page": "page-2", "x": 1530, "y": 0, "w": 390, "h": 850 },
+    { "file": "MobileAssaggio.dc.html", "title": "5 · Assaggio e paywall", "page": "page-2", "x": 2040, "y": 0, "w": 390, "h": 1360 },
+    { "file": "MobileLibro.dc.html", "title": "6 · Il libro", "page": "page-2", "x": 2550, "y": 0, "w": 390, "h": 1000 }
+  ],
+  "annotations": [
+    {
+      "id": "flusso",
+      "page": "page-1",
+      "x": 0,
+      "y": -190,
+      "w": 620,
+      "text": "Il flusso, da sinistra a destra: Landing → Brief → Intervista → Avanzamento → Assaggio col paywall → Libro completo.\n\nDirezione scelta: \"Carta e inchiostro\". Carattere da libro (EB Garamond) con un grottesco preciso per l'interfaccia (Archivo), carta calda, un solo accento terracotta, filetti sottili invece di ombre. Niente Fraunces: è il font di default di mezzo web generato da AI e ci farebbe sembrare un tool."
+    },
+    {
+      "id": "direzioni",
+      "page": "page-1",
+      "x": 1400,
+      "y": 2360,
+      "w": 520,
+      "text": "Le due direzioni che ho scartato, tenute qui per confronto.\n\nSe una delle due vi convince di più, la sviluppo su tutte e sei le schermate: sono scelte di tono, non di gusto — cambiano quanto il prodotto sembra artigianale, caldo o di design."
+    },
+    {
+      "id": "mobile",
+      "page": "page-2",
+      "x": 0,
+      "y": -230,
+      "w": 620,
+      "text": "Mobile (390px), l'interfaccia principale. Non è il desktop stretto: tre schermate sono ripensate.\n\n· Il BRIEF diventa un percorso a quattro passi. Un form lungo su telefono si abbandona; a passi si finisce.\n· Il LIBRO perde le tre colonne: indice e note si richiamano, e in fondo restano solo capitolo precedente e successivo.\n· L'ASSAGGIO tiene prezzo e pulsante in una barra fissa in basso, sempre raggiungibile col pollice mentre si legge.\n\nOgni elemento toccabile è almeno 44px. Niente finta barra di stato: sul telefono vero ci va quella di sistema."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-2" }
+}

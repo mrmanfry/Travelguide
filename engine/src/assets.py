@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS assets (
 
 
 def _connect() -> sqlite3.Connection:
-    db_path = ENGINE_ROOT / config.ASSETS_DB
+    db_path = config.assets_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(db_path)
     con.execute(_SCHEMA)

@@ -1,2 +1,11 @@
 anthropic>=0.40
 pydantic>=2.7
+# Impaginazione del PDF e mappe dei capitoli
+weasyprint>=66
+markdown>=3.6
+matplotlib>=3.9
+shapely>=2.0
+pillow>=10
+pypdf>=4
+# La copertina disegnata al volo si guarda come immagine (fronte del PDF in PNG).
+pypdfium2>=4

@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f7f3ec; color: #241f1a;
+           font-family: "EB Garamond", Georgia, "Times New Roman", serif; }
+    a { color: #b4522f; text-decoration: none; }
+    a:hover { color: #8f3f24; }
+  </style>
+</helmet>
+
+<div style="width: 900px; background: #f7f3ec; padding: 40px 64px 48px;">
+
+  <!-- chi vi sta parlando -->
+  <div style="display: flex; align-items: center; gap: 16px; padding-bottom: 26px; border-bottom: 1px solid #e0d8cc;">
+    <div style="width: 46px; height: 46px; border-radius: 50%; border: 1px solid #d5cabb; background: #fffdf9; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b4522f" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20c6-1 10-5 13-11 1-2 1.5-3.5 1.5-4.5-1 0-2.5.5-4.5 1.5C8 9 4 13 3 19z"/><path d="M4 20l5-5"/></svg>
+    </div>
+    <div>
+      <div style="font-size: 20px;">Il vostro autore</div>
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #8a7f73;">sta leggendo il vostro viaggio</div>
+    </div>
+  </div>
+
+  <!-- conversazione -->
+  <div style="display: flex; flex-direction: column; gap: 20px; padding: 32px 0;">
+
+    <div style="display: flex; justify-content: flex-start;">
+      <div style="max-width: 78%; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 14px 14px 14px 4px; padding: 18px 22px; font-size: 19px; line-height: 1.6;">
+        Ho guardato il vostro giro: la Puglia, il salto sulle isole, poi su verso le montagne dello Zagori — tutto in sella, in due. Bello davvero. Ma la mappa non mi dice ancora <span style="font-style: italic;">chi siete</span>, e il libro lo scrivo per voi, non per l'itinerario. Due minuti, come tra amici: c'è già un momento di questo viaggio che vi immaginate la sera, prima di dormire?
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end;">
+      <div style="max-width: 62%; background: #241f1a; color: #f4efe7; border-radius: 14px 14px 4px 14px; padding: 15px 20px; font-size: 19px; line-height: 1.55;">
+        Una cala che si raggiunge solo in moto
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-start;">
+      <div style="max-width: 78%; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 14px 14px 14px 4px; padding: 18px 22px; font-size: 19px; line-height: 1.6;">
+        Ecco, già vi vedo: non la spiaggia con gli ombrelloni in fila, ma quella che ti guadagni con dieci minuti di sterrato. Il premio è il silenzio. Allora ditemi — quando trovate un posto così, cos'è che vi spezza l'incanto più di tutto?
+      </div>
+    </div>
+
+    <!-- suggerimenti tappabili -->
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; padding-left: 2px;">
+      <span style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 999px; padding: 10px 18px; font-size: 17px; color: #3d352d;">La folla che arriva</span>
+      <span style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 999px; padding: 10px 18px; font-size: 17px; color: #3d352d;">Sentirsi di corsa</span>
+      <span style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 999px; padding: 10px 18px; font-size: 17px; color: #3d352d;">Scoprire che è finto</span>
+      <span style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 999px; padding: 10px 18px; font-size: 17px; color: #3d352d;">Sorprendetemi</span>
+    </div>
+
+    <!-- sta scrivendo -->
+    <div style="display: flex; justify-content: flex-start;">
+      <div style="display: flex; align-items: center; gap: 8px; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 14px 14px 14px 4px; padding: 16px 20px;">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #c0b3a2;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #c0b3a2; opacity: 0.65;"></span>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #c0b3a2; opacity: 0.35;"></span>
+        <span style="margin-left: 8px; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #8a7f73;">sta scrivendo</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- il ritratto: la chiusura -->
+  <div style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 4px; padding: 38px 40px; text-align: center; margin-top: 8px;">
+    <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #8a7f73;">Il ritratto</div>
+    <h2 style="margin: 14px 0 18px; font-size: 34px; font-weight: 500;">Ecco chi ho capito che siete</h2>
+    <p style="margin: 0 auto 28px; font-size: 20px; line-height: 1.65; color: #3d352d; max-width: 30rem;">Due che cercano il vuoto più della cartolina, la strada più della meta, e una tavola vera più di un'insegna famosa. Su questo vi scrivo un libro che vi somiglia — niente file, niente finto, molto silenzio guadagnato.</p>
+    <a href="#" style="display: inline-block; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 500; color: #f7f3ec; background: #241f1a; padding: 15px 32px; border-radius: 3px;">Comincia il mio libro</a>
+  </div>
+
+  <!-- risposta libera -->
+  <div style="margin-top: 26px; display: flex; gap: 12px; align-items: flex-end;">
+    <div style="flex-grow: 1; border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 14px 16px; font-size: 18px; color: #a4998c; font-style: italic; min-height: 58px;">…oppure raccontamelo a modo tuo</div>
+    <div style="width: 52px; height: 52px; border-radius: 3px; background: #241f1a; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#f7f3ec" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+    </div>
+  </div>
+  <div style="margin-top: 14px; text-align: center; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #a4998c;">
+    <a href="#" style="color: #a4998c; text-decoration: underline; text-underline-offset: 3px;">Salta l'intervista</a>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

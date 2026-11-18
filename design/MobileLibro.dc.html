@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fffdf9; color: #241f1a;
+           font-family: "EB Garamond", Georgia, "Times New Roman", serif; }
+    a { color: #b4522f; text-decoration: none; }
+    a:hover { color: #8f3f24; }
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 1000px; background: #fffdf9; position: relative;">
+
+  <!-- barra di lettura -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #e0d8cc; background: #f7f3ec;">
+    <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3d352d" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+    </span>
+    <div style="text-align: center;">
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73;">Capitolo V</div>
+      <div style="font-size: 17px; line-height: 1.2;">Cefalonia</div>
+    </div>
+    <span style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#3d352d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/></svg>
+    </span>
+  </div>
+
+  <!-- la pagina -->
+  <div style="padding: 34px 26px 0;">
+
+    <div style="text-align: center; margin-bottom: 30px;">
+      <h1 style="margin: 0; font-size: 30px; font-weight: 500; line-height: 1.2;">Cefalonia</h1>
+      <p style="margin: 9px 0 0; font-size: 18px; font-style: italic; color: #8a7f73;">La spina di roccia sopra il mare più blu</p>
+      <div style="width: 40px; height: 1px; background: #d5cabb; margin: 22px auto 0;"></div>
+    </div>
+
+    <h2 style="margin: 0 0 14px; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #8a7f73; font-weight: 500;">I · Sbarcare</h2>
+
+    <p style="margin: 0 0 18px; font-size: 18px; line-height: 1.75; color: #2c2620;">Il traghetto entra a Sami quando il sole è già alto, e la prima cosa che vedrete non sarà il mare ma la montagna: l'Ainos scuro di abeti, che tiene l'isola come una spina dorsale. Da qui in poi ogni spostamento sarà una salita o una discesa — tenetelo a mente quando calcolerete i tempi.</p>
+
+    <p style="margin: 0 0 22px; font-size: 18px; line-height: 1.75; color: #2c2620;">Il vostro albergo è a Lassi, dall'altra parte rispetto al porto: quaranta minuti di strada che vale la pena fare con calma.</p>
+
+    <div style="border-left: 2px solid #b4522f; background: #faf6ee; padding: 16px 18px; margin: 0 0 22px;">
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #b4522f; margin-bottom: 9px;">Gli immobili</div>
+      <div style="font-size: 17px; line-height: 1.65; color: #3d352d;">Il 13 agosto la gita in barca da Fiskardo va prenotata prima di partire: è alta stagione. Il 15 è Ferragosto — le taverne dei paesi si riempiono di famiglie greche, ed è un bene: mangiate lì.</div>
+    </div>
+
+    <p style="margin: 0 0 18px; font-size: 18px; line-height: 1.75; color: #2c2620;">A Fiskardo l'acqua è di un blu che sembra truccato. Il paese è l'unico dell'isola sopravvissuto al terremoto del 1953, e si vede: case venete, colori tenui, barche a un passo dai tavoli.</p>
+
+    <!-- richiamo alla nota, in linea -->
+    <div style="display: flex; gap: 11px; align-items: start; border-top: 1px solid #eee7dc; border-bottom: 1px solid #eee7dc; padding: 14px 0; margin-bottom: 20px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b4522f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 3px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <div style="font-size: 16px; line-height: 1.6; color: #5b524a;">Una nota su questo capitolo: la «vigilia di Ferragosto» è il 14, non il 13. <a href="#" style="text-decoration: underline; text-underline-offset: 3px;">Vedi tutte le note</a></div>
+    </div>
+
+  </div>
+
+  <!-- navigazione tra capitoli, fissa -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; background: #f7f3ec; border-top: 1px solid #e0d8cc; padding: 12px 18px 20px; display: flex; align-items: center; justify-content: space-between;">
+    <span style="display: flex; align-items: center; gap: 9px; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a; min-height: 44px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b524a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>IV · Il traghetto
+    </span>
+    <span style="display: flex; align-items: center; gap: 9px; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #3d352d; min-height: 44px;">
+      VI · Verso Itaca
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3d352d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+    </span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

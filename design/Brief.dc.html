@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600&display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f7f3ec; color: #241f1a;
+           font-family: "EB Garamond", Georgia, "Times New Roman", serif; }
+    a { color: #b4522f; text-decoration: none; }
+    a:hover { color: #8f3f24; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #f7f3ec; padding-bottom: 40px;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 80px; border-bottom: 1px solid #e0d8cc;">
+    <div style="font-size: 19px;">Atelier del Viaggio</div>
+    <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73;">Il vostro viaggio</div>
+  </div>
+
+  <div style="max-width: 880px; margin: 0 auto; padding: 64px 0 0;">
+
+    <h1 style="margin: 0 0 14px; font-size: 50px; font-weight: 500; line-height: 1.1;">Raccontateci il viaggio</h1>
+    <p style="margin: 0 0 56px; font-size: 20px; line-height: 1.6; color: #5b524a; max-width: 34rem;">Tappe, ritmo, compagni di strada e piccole ossessioni: ogni dettaglio diventa una pagina scritta per voi.</p>
+
+    <!-- il viaggio -->
+    <div style="border-top: 1px solid #e0d8cc; padding: 34px 0;">
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73; margin-bottom: 26px;">I · Il viaggio</div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px;">
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Come vi muovete</label>
+          <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px;">In moto
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a7f73" stroke-width="1.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Partenza</label>
+          <div style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px;">8 agosto 2026</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Rientro</label>
+          <div style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px;">22 agosto 2026</div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px; margin-top: 22px;">
+        <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Qualcosa che dovremmo sapere sul mezzo</label>
+        <div style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px; color: #8a7f73; font-style: italic;">Una moto, due persone. Lui guida, lei viaggia dietro. Tre giornate lunghe.</div>
+      </div>
+    </div>
+
+    <!-- tappe -->
+    <div style="border-top: 1px solid #e0d8cc; padding: 34px 0;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 26px;">
+        <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73;">II · Le tappe</div>
+        <span style="font-size: 17px; color: #8a7f73; font-style: italic;">nell'ordine in cui le vivrete</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+
+        <div style="display: grid; grid-template-columns: 34px 1fr 96px 1fr 34px; gap: 16px; align-items: center; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 3px; padding: 14px 16px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>
+          <div style="font-size: 19px;">Locorotondo, Valle d'Itria</div>
+          <div style="font-size: 17px; color: #5b524a;">3 notti</div>
+          <div style="font-size: 17px; color: #8a7f73;">B&amp;B Villa Olimpia</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 34px 1fr 96px 1fr 34px; gap: 16px; align-items: center; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 3px; padding: 14px 16px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>
+          <div style="font-size: 19px;">Cefalonia</div>
+          <div style="font-size: 17px; color: #5b524a;">3 notti</div>
+          <div style="font-size: 17px; color: #8a7f73;">Thalassa Boutique Hotel</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 34px 1fr 96px 1fr 34px; gap: 16px; align-items: center; background: #fffdf9; border: 1px solid #e0d8cc; border-radius: 3px; padding: 14px 16px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>
+          <div style="font-size: 19px;">Itaca</div>
+          <div style="font-size: 17px; color: #5b524a;">2 notti</div>
+          <div style="font-size: 17px; color: #8a7f73;">Hotel Nostos</div>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c0b3a2" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </div>
+
+      </div>
+
+      <div style="margin-top: 16px;">
+        <span style="display: inline-flex; align-items: center; gap: 9px; border: 1px dashed #c9bcaa; border-radius: 3px; padding: 12px 18px; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 14px; color: #5b524a;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b4522f" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Aggiungi una tappa
+        </span>
+      </div>
+    </div>
+
+    <!-- chi viaggia + stile -->
+    <div style="border-top: 1px solid #e0d8cc; padding: 34px 0;">
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73; margin-bottom: 26px;">III · Chi viaggia, e come</div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px;">
+        <div style="display: flex; flex-direction: column; gap: 22px;">
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Siete</label>
+            <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px;">Una coppia, due adulti
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a7f73" stroke-width="1.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 9px;">
+            <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">Quanto volete spendere</label>
+            <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 13px 15px; font-size: 18px;">Medio-alto
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a7f73" stroke-width="1.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 30px;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;"><span>Riposo</span><span>Avventura</span></div>
+            <div style="position: relative; height: 3px; background: #e0d8cc;">
+              <div style="position: absolute; left: 0; top: 0; height: 3px; width: 78%; background: #b4522f;"></div>
+              <div style="position: absolute; left: 78%; top: -7px; width: 17px; height: 17px; border-radius: 50%; background: #b4522f;"></div>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;"><span>Giornate lente</span><span>Giornate piene</span></div>
+            <div style="position: relative; height: 3px; background: #e0d8cc;">
+              <div style="position: absolute; left: 0; top: 0; height: 3px; width: 62%; background: #b4522f;"></div>
+              <div style="position: absolute; left: 62%; top: -7px; width: 17px; height: 17px; border-radius: 50%; background: #b4522f;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- passioni e oro -->
+    <div style="border-top: 1px solid #e0d8cc; padding: 34px 0;">
+      <div style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7f73; margin-bottom: 26px;">IV · Cosa non deve mancare</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px;">
+        <span style="border: 1px solid #b4522f; color: #b4522f; border-radius: 3px; padding: 9px 16px; font-size: 17px;">Strade da guidare</span>
+        <span style="border: 1px solid #b4522f; color: #b4522f; border-radius: 3px; padding: 9px 16px; font-size: 17px;">Mare e spiagge</span>
+        <span style="border: 1px solid #b4522f; color: #b4522f; border-radius: 3px; padding: 9px 16px; font-size: 17px;">Giri in barca</span>
+        <span style="border: 1px solid #b4522f; color: #b4522f; border-radius: 3px; padding: 9px 16px; font-size: 17px;">Posti veri, non turistici</span>
+        <span style="border: 1px dashed #c9bcaa; color: #5b524a; border-radius: 3px; padding: 9px 16px; font-size: 17px;">+ aggiungi</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <label style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; color: #5b524a;">C'è qualcosa che state già sognando?</label>
+        <div style="border: 1px solid #d5cabb; background: #fffdf9; border-radius: 3px; padding: 15px; font-size: 18px; color: #8a7f73; font-style: italic; min-height: 92px;">Il concerto a Locorotondo il 10 agosto. E una cala dove non ci sia nessuno.</div>
+      </div>
+    </div>
+
+    <!-- azione -->
+    <div style="border-top: 1px solid #e0d8cc; padding: 40px 0 0; display: flex; align-items: center; justify-content: space-between;">
+      <span style="font-size: 18px; color: #8a7f73; font-style: italic;">Prima di scrivere, il vostro autore vi farà qualche domanda.</span>
+      <a href="#" style="font-family: Archivo, 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 500; color: #f7f3ec; background: #241f1a; padding: 16px 34px; border-radius: 3px;">Continua</a>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

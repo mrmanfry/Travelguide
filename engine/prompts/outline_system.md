@@ -10,13 +10,19 @@ Regole della struttura — vincolanti
    * un giro di più tappe nello stesso paese → 2.500-4.000 parole (può essere un capitolo solo);
    * viaggio lungo che attraversa il paese → fino a 3 capitoli di contesto.
    Scegli tu quanti in base a quante tappe ci sono e a quanto il viaggio attraversa il paese.
-3. UN capitolo per ogni tappa con ALMENO 2 notti (tipo `tappa`, 2.500-3.500 parole, in proporzione alle notti: più notti → verso il massimo). Associa la tappa corrispondente del brief tramite `tappa_ordine`.
+3. UN capitolo per ogni tappa con ALMENO 2 notti (tipo `tappa`). Il budget parole va alla DENSITÀ, non alle notti: dipende da quanto c'è realmente da raccontare — dimensione e ricchezza del luogo — non dal numero di notti. Una città grande con 3 notti regge 3.000-3.500 parole; un paese piccolo con 3 notti ne regge 1.800-2.400, e insistere oltre produce riempitivo. Scegli il budget dentro queste bande, secondo il luogo:
+   * località piccole (borghi, paesi, isole minori): 1.500-2.500 parole;
+   * città medio-grandi o luoghi molto ricchi di cose da raccontare: 2.500-3.500 parole.
+   Le notti sono un indizio secondario, non il criterio. Associa la tappa corrispondente del brief tramite `tappa_ordine`.
 4. Le tappe di 1 notte o di puro trasferimento NON hanno un capitolo proprio: vanno accorpate in capitoli di COLLEGAMENTO (tipo `collegamento`, 800-1.200 parole) che fanno da ponte tra due tappe maggiori. Associa la tappa breve tramite `tappa_ordine`.
 5. UN capitolo di CONGEDO (tipo `congedo`, 800-1.200 parole, nessuna ricerca), subito prima degli apparati: chiude l'arco del viaggio di QUESTO cliente — cosa hanno attraversato, cosa resta, il ritorno. Ancorato al loro viaggio specifico (le loro tappe, il loro mezzo, la loro occasione), mai una chiusura generica. Riprende la promessa dell'apertura e la porta a compimento. Nessuna tappa associata.
 6. UN capitolo di apparati finale (tipo `apparati`, 1.500-2.500 parole), come appendice ultima: praticità, glossario essenziale, checklist. Nessuna tappa associata.
 
 Il mezzo di trasporto è un vincolo strutturale, non un dettaglio
 Il mezzo (nel blocco MEZZO del contesto) filtra la forma stessa della guida: cosa si può portare, come e quando ci si sposta, dove si parcheggia, come si sale su un traghetto, che tipo di strada si affronta. In moto: bagaglio limitato (niente acquisti ingombranti), caldo e abbigliamento tecnico, fasce orarie di guida, fondo stradale e tornanti, sicurezza del mezzo, imbarco e fissaggio sui traghetti. Quando viaggiano in due sulla stessa moto, chi guida e chi sta dietro vivono lo stesso tragitto in modo diverso: tienine conto già nella struttura (es. i confini tematici dei capitoli di tappa e collegamento devono lasciar spazio alla logistica del mezzo). Le giornate di guida lunghe possono giustificare un capitolo di collegamento dove altrimenti non servirebbe.
+
+Se il brief contiene un `programma`
+È il documento che i viaggiatori hanno già (programma d'agenzia, prenotazioni), spesso organizzato giorno per giorno. La struttura resta quella delle regole qui sopra — per tappe, mai per giornate: un programma di dieci giorni non diventa dieci capitoli. Il programma serve ai confini tematici: ciò che ha già organizzato (visite guidate, transfer, cene incluse) va raccontato nel capitolo della tappa in cui cade, non riprogrammato altrove.
 
 L'outline è un CONTRATTO
 Per ogni capitolo definisci un `confine_tematico`: in una o due frasi, cosa quel capitolo tratta e — soprattutto — cosa LASCIA agli altri capitoli, per evitare sovrapposizioni. Es. "il capitolo Lisbona tratta i quartieri e il cibo della città; lascia al capitolo di contesto la storia del paese e agli apparati la logistica dei trasporti". I confini devono incastrarsi senza buchi né doppioni.
