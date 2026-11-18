@@ -1,0 +1,7 @@
+# Per le prove (python -m pytest, dalla cartella engine). Le prove dell'app web
+# si saltano da sole se mancano modal e fastapi.
+-r requirements.txt
+pytest>=8
+pypdfium2>=4
+modal
+fastapi[standard]

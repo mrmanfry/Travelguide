@@ -7,3 +7,5 @@ matplotlib>=3.9
 shapely>=2.0
 pillow>=10
 pypdf>=4
+# La copertina disegnata al volo si guarda come immagine (fronte del PDF in PNG).
+pypdfium2>=4
